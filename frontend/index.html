@@ -67,7 +67,6 @@
       font-style: italic;
       line-height: 1.05;
       margin: 18px 0 2px;
-      padding-top: 8px;     /* 给 auto-hide 的顶部按钮栏留出空间 */
       white-space: nowrap;
       background: linear-gradient(180deg, #eafcff 0%, #7fd8ff 55%, #2fb8ff 100%);
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
@@ -326,13 +325,28 @@
     .top-bar.hidden { transform: translateY(-110%); opacity: 0; }
     .top-bar-right { display: flex; align-items: center; gap: 6px; }
 
-    /* 顶部按钮：现在都是 top-bar 的子元素，不再 fixed */
-    .sound-toggle {
-      width: 38px; height: 38px; border-radius: 50%;
-      border: 1px solid var(--line); background: rgba(10,30,55,.85); color: var(--text);
-      font-size: 18px; cursor: pointer; line-height: 36px; text-align: center; padding: 0;
-      box-shadow: 0 0 12px rgba(56,224,255,.25);
+    /* 顶栏拉出条：永远固定在屏幕顶部 12px 高，点一下显隐顶栏。
+     * 中间有个发光小条做视觉指示，让用户知道"这里能戳"。 */
+    .top-bar-handle {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 14px; padding: 0; margin: 0;
+      z-index: 21;          /* 高于 top-bar 本体，便于始终可点 */
+      border: none; background: transparent; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
     }
+    .top-bar-handle::after {
+      content: ""; display: block;
+      width: 40px; height: 4px; border-radius: 2px;
+      background: rgba(120,200,255,.45);
+      box-shadow: 0 0 8px rgba(56,224,255,.5);
+      transition: width .2s, background .2s;
+    }
+    .top-bar-handle:hover::after,
+    .top-bar-handle:active::after {
+      width: 60px; background: rgba(120,220,255,.9);
+    }
+
+    /* 历史按钮（top-bar 子元素） */
     .history-toggle {
       position: relative;
       width: 38px; height: 38px; border-radius: 50%;
@@ -694,6 +708,16 @@
       filter: drop-shadow(0 0 10px rgba(56,224,255,.5));
     }
     .tower-title .tt-sub { font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
+
+    /* 混沌出击：与试炼之塔/故事对决同款标题块，使保持视觉一致 */
+    .battle-title { text-align: center; margin-bottom: 14px; }
+    .battle-title .bt-name {
+      font-size: 26px; font-weight: 800; letter-spacing: 3px;
+      background: linear-gradient(90deg, #5ce0ff, #38e0ff, #9fe6ff);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 10px rgba(56,224,255,.5));
+    }
+    .battle-title .bt-sub { font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
 
     .tower-input-card .field.h input:focus { border-color: var(--neon); }
     button#towerStart {
@@ -1257,31 +1281,40 @@
       max-width: 320px;
     }
 
-    /* ===================== BGM 控制条（top-bar 子元素） ===================== */
-    .bgm-bar {
+    /* ===================== 音频条：SFX + BGM 合并在一个胶囊里 ===================== */
+    /* 布局：🔊 音效开关 | 分隔线 | 🎵 BGM 播放/暂停 | BGM 选曲下拉 */
+    .audio-bar {
       display: flex; align-items: center; gap: 4px;
-      padding: 0 6px 0 8px; height: 38px; border-radius: 999px;
+      padding: 0 6px 0 4px; height: 38px; border-radius: 999px;
       background: rgba(10,30,55,.85); border: 1px solid var(--line);
       box-shadow: 0 0 12px rgba(56,224,255,.22);
     }
-    .bgm-bar .bgm-toggle {
+    .audio-bar .audio-sfx,
+    .audio-bar .bgm-toggle {
       background: none; border: none; color: var(--text);
-      font-size: 16px; cursor: pointer; padding: 0 4px;
+      font-size: 16px; cursor: pointer; padding: 0;
+      width: 30px; height: 30px; line-height: 30px; text-align: center;
+      border-radius: 50%;
     }
-    .bgm-bar select {
+    .audio-bar .audio-sfx:hover,
+    .audio-bar .bgm-toggle:hover { background: rgba(56,224,255,.15); }
+    .audio-bar .audio-sep {
+      width: 1px; height: 18px; background: rgba(120,200,255,.3);
+      flex: none;
+    }
+    .audio-bar select {
       background: transparent; border: none; color: var(--text);
       font-size: 11px; padding: 4px 18px 4px 4px; outline: none;
-      max-width: 110px; appearance: none; -webkit-appearance: none;
+      max-width: 100px; appearance: none; -webkit-appearance: none;
       cursor: pointer;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%239fe6ff' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
       background-repeat: no-repeat; background-position: right 4px center;
     }
-    .bgm-bar select option {
+    .audio-bar select option {
       background: #04101f; color: var(--text);
     }
     @media (max-width: 380px) {
-      /* 小屏：把下拉框宽度缩小 */
-      .bgm-bar select { max-width: 76px; font-size: 10px; }
+      .audio-bar select { max-width: 72px; font-size: 10px; }
     }
 
     /* ===================== 排行榜入口按钮 + 弹窗 ===================== */
@@ -1404,9 +1437,9 @@
 
     button#storyStart {
       width: 100%; padding: 15px; font-size: 17px; font-weight: 700; letter-spacing: 1px;
-      border: 1px solid rgba(255,210,74,.55); border-radius: 12px; color: #042033;
-      background: linear-gradient(100deg, #ffd24a, #ff9a3c);
-      box-shadow: 0 0 22px rgba(255,210,74,.45), inset 0 1px 0 rgba(255,255,255,.4);
+      border: 1px solid rgba(120,220,255,.5); border-radius: 12px; color: #052033;
+      background: linear-gradient(100deg, #38e0ff, #5ca8ff);
+      box-shadow: 0 0 22px rgba(56,224,255,.45), inset 0 1px 0 rgba(255,255,255,.4);
       cursor: pointer;
     }
     button#storyStart:disabled { opacity: .5; cursor: not-allowed; }
@@ -1565,12 +1598,18 @@
     </div>
   </div>
 
-  <!-- 顶部按钮栏（auto-hide）：默认显示在顶部，向下滚动时整条隐去，
-       向上滚动时立即露出。永远固定在视口顶部，不占文档流。 -->
-  <div class="top-bar" id="topBar">
+  <!-- 顶栏拉出条：永远固定在屏幕顶端 1px 高，点击/触碰即可显隐顶栏。
+       让默认隐藏的顶栏在任何时候都能被召出来（包括 scroll=0 时）。 -->
+  <button class="top-bar-handle" id="topBarHandle" type="button" title="显示/隐藏顶部按钮"></button>
+
+  <!-- 顶部按钮栏（默认隐藏，向上滚动 / 点拉出条 显形） -->
+  <div class="top-bar hidden" id="topBar">
     <button class="lb-toggle" id="lbToggle" title="排行榜">🏆</button>
     <div class="top-bar-right">
-      <div class="bgm-bar" id="bgmBar">
+      <!-- 音频条：左音效（SFX）+ 中 BGM 播放/暂停 + 右 BGM 选曲 -->
+      <div class="audio-bar" id="audioBar">
+        <button class="audio-sfx" id="soundToggle" title="开/关音效">🔊</button>
+        <span class="audio-sep"></span>
         <button class="bgm-toggle" id="bgmToggle" title="播放/暂停背景音乐">🎵</button>
         <select id="bgmSelect" title="背景音乐">
           <option value="none">🔇 关闭</option>
@@ -1582,7 +1621,6 @@
       <button class="history-toggle" id="historyToggle" title="历史档案">
         📜<span class="ht-badge" id="historyBadge">0</span>
       </button>
-      <button class="sound-toggle" id="soundToggle" title="开/关音效">🔊</button>
     </div>
   </div>
 
@@ -1598,6 +1636,10 @@
 
   <!-- ========== 对战模式 ========== -->
   <div id="battleMode">
+    <div class="battle-title">
+      <div class="bt-name">⚔️ 混沌出击</div>
+      <div class="bt-sub">CHAOS CLASH · AI 联网搜索真实设定 · 数值化自动战斗</div>
+    </div>
     <div class="input-card" id="inputCard">
       <div class="field a">
         <label>正方名字</label>
@@ -4083,41 +4125,49 @@
     // 默认选中第一首但不自动播放；用户首次点击播放按钮 / 进入战斗才会开
     $("bgmSelect").value = "blaze";
 
-    /* ------------------ 顶部 top-bar 滚动隐藏/显示 ------------------
-     * 向下滚动 → 隐藏（让出阅读空间）；向上滚动 → 立刻露出。
-     * 在视口顶部 50px 之内总是显示，避免页面顶部反而看不到按钮。
-     * 用 rAF 节流，被动监听以提升滚动性能。 */
+    /* ------------------ 顶部 top-bar 默认隐藏，按需召出 ------------------
+     * 行为：
+     *   - 初始隐藏（HTML 上就带 .hidden）；
+     *   - 向上滚动 → 显形；
+     *   - 向下滚动 → 隐藏；
+     *   - 点屏幕最顶部的拉出条（top-bar-handle）→ 切换显隐，
+     *     给 scroll=0 时的用户提供"叫出来"的入口；
+     *   - 弹窗打开会自动显形便于关闭。
+     */
     (() => {
       const bar = $("topBar");
+      const handle = $("topBarHandle");
       if (!bar) return;
       let lastY = window.scrollY;
       let pending = false;
-      const SHOW_NEAR_TOP = 50;     // 顶部 50px 内永远显示
-      const HIDE_THRESHOLD = 6;     // 单次滚动至少 6px 才响应（防抖）
+      const THRESHOLD = 6;     // 单次滚动至少 6px 才响应（防抖）
+
+      function show() { bar.classList.remove("hidden"); }
+      function hide() { bar.classList.add("hidden"); }
+      function toggle() { bar.classList.toggle("hidden"); }
+
       const onScroll = () => {
         if (pending) return;
         pending = true;
         requestAnimationFrame(() => {
           const y = window.scrollY;
           const dy = y - lastY;
-          if (y < SHOW_NEAR_TOP) {
-            bar.classList.remove("hidden");
-          } else if (dy > HIDE_THRESHOLD) {
-            bar.classList.add("hidden");
-          } else if (dy < -HIDE_THRESHOLD) {
-            bar.classList.remove("hidden");
-          }
+          if (dy > THRESHOLD) hide();
+          else if (dy < -THRESHOLD) show();
           lastY = y;
           pending = false;
         });
       };
       window.addEventListener("scroll", onScroll, { passive: true });
-      // 任何弹窗打开时强制显示一下，便于关闭
+
+      if (handle) handle.addEventListener("click", toggle);
+
+      // 任何弹窗打开时强制显形，便于关闭
       ["lbModal", "historyModal", "skillModal", "resultModal", "upgradeModal", "mgModal"].forEach((id) => {
         const el = document.getElementById(id);
         if (!el) return;
         new MutationObserver(() => {
-          if (el.classList.contains("open")) bar.classList.remove("hidden");
+          if (el.classList.contains("open")) show();
         }).observe(el, { attributes: true, attributeFilter: ["class"] });
       });
     })();
