@@ -376,10 +376,19 @@
       flex: 1; padding: 8px; font-size: 12px; font-weight: 700;
       border: none; border-radius: 8px; background: transparent; color: var(--muted);
       cursor: pointer; transition: background .15s, color .15s;
+      position: relative;     /* 给子 badge 做定位锚点 */
     }
     .history-tabs button.active {
       color: #052033; background: linear-gradient(100deg,#38e0ff,#5ca8ff);
       box-shadow: 0 0 14px rgba(56,224,255,.4);
+    }
+    /* 子徽章：每个 tab 的未读数（与顶部 .ht-badge 同款橙红色） */
+    .history-tabs button .tab-badge {
+      position: absolute; top: -4px; right: -4px;
+      min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+      background: linear-gradient(135deg,#ff9a3c,#ff5d6c);
+      font-size: 9px; font-weight: 800; line-height: 16px; color: #fff;
+      box-shadow: 0 0 8px rgba(255,93,108,.55);
     }
     .history-list {
       width: 100%; max-width: 460px; flex: 1; overflow-y: auto;
@@ -2036,6 +2045,56 @@
     }
     function clearHistory() { saveHistory([]); }
     function findHistory(id) { return loadHistory().find((it) => it.id === id); }
+
+    /* ---- 每个历史 tab 的"最后已读时间"：让顶部徽章只算未读，不是总数 ----
+     * 流程：
+     *   - 第一次进 app：lastRead={}，所有记录 ts > 0，全算未读 → 顶部徽章=总数
+     *   - 用户点某个 tab → markTabRead 把那个 tab 的 lastRead 推到 now
+     *     → 该 tab 子徽章清零，顶部徽章减去对应数
+     *   - 之后新增的记录 ts > lastRead，又会自动算成未读
+     */
+    const LAST_READ_KEY = "naoz.history.lastRead.v1";
+    function loadLastRead() {
+      try { return JSON.parse(localStorage.getItem(LAST_READ_KEY) || "{}"); }
+      catch { return {}; }
+    }
+    function saveLastRead(obj) {
+      try { localStorage.setItem(LAST_READ_KEY, JSON.stringify(obj)); } catch {}
+    }
+    function markTabRead(tab) {
+      const m = loadLastRead();
+      m[tab] = Date.now();
+      saveLastRead(m);
+    }
+    function unreadCountForTab(tab) {
+      const lastReadTs = loadLastRead()[tab] || 0;
+      return loadHistory().filter(
+        (it) => it.type === tab && (it.ts || 0) > lastReadTs
+      ).length;
+    }
+    function totalUnread() {
+      return ["tower", "battle", "story"].reduce(
+        (sum, t) => sum + unreadCountForTab(t), 0
+      );
+    }
+    // 刷新各 tab 的子徽章（点开历史 / 切 tab / 补回数据后调）
+    function refreshTabBadges() {
+      document.querySelectorAll(".history-tabs button").forEach((btn) => {
+        const tab = btn.dataset.htab;
+        const n = unreadCountForTab(tab);
+        let badge = btn.querySelector(".tab-badge");
+        if (n > 0) {
+          if (!badge) {
+            badge = document.createElement("span");
+            badge.className = "tab-badge";
+            btn.appendChild(badge);
+          }
+          badge.textContent = n > 99 ? "99+" : String(n);
+        } else if (badge) {
+          badge.remove();
+        }
+      });
+    }
 
     /* 把后端 /api/matches 里已存在、但本地 localStorage 没有的乱斗记录补回来。
      * 用于历史早于「story 入库 localStorage」上线之前的存档 —— 它们只在后端，
@@ -4728,7 +4787,8 @@
     let historyTab = "tower";  // 当前 tab：tower | battle
 
     function refreshHistoryBadge() {
-      const n = loadHistory().length;
+      // 顶部徽章只显示"未读"总数（=各 tab 子徽章之和），不是历史总条数
+      const n = totalUnread();
       const b = $("historyBadge");
       b.textContent = n > 99 ? "99+" : String(n);
       b.classList.toggle("show", n > 0);
@@ -4847,10 +4907,12 @@
       $("historyModal").classList.add("open");
       // 先用本地数据立刻渲染，避免空白等待；后台同步把后端未在本地的乱斗记录补进来
       refreshHistoryBadge();
+      refreshTabBadges();
       renderHistoryList();
       await backfillStoryHistoryFromBackend();
-      // 补完后再刷一次：徽章 + 当前 tab 列表（即便补进来的不是当前 tab，徽章会更新）
+      // 补完后再刷一次：顶部徽章 + 各 tab 子徽章 + 当前 tab 列表
       refreshHistoryBadge();
+      refreshTabBadges();
       renderHistoryList();
     }
     function closeHistory() { $("historyModal").classList.remove("open"); }
@@ -4869,6 +4931,7 @@
         });
         clearHistory();
         refreshHistoryBadge();
+        refreshTabBadges();
         renderHistoryList();
       }
     });
@@ -4876,10 +4939,13 @@
     document.querySelectorAll(".history-tabs button").forEach((b) => {
       b.addEventListener("click", () => {
         historyTab = b.dataset.htab;
+        markTabRead(historyTab);          // 用户主动点了该 tab，标为已读
         document.querySelectorAll(".history-tabs button").forEach((x) =>
           x.classList.toggle("active", x.dataset.htab === historyTab)
         );
         renderHistoryList();
+        refreshTabBadges();              // 清掉刚点的 tab 的子徽章
+        refreshHistoryBadge();           // 顶部徽章同步减
       });
     });
     // 事件代理：点列表里的按钮
@@ -4901,6 +4967,7 @@
         }
         removeHistory(id);
         refreshHistoryBadge();
+        refreshTabBadges();
         renderHistoryList();
       } else if (action === "replay") {
         closeHistory();
