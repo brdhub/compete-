@@ -59,6 +59,33 @@
       color: #eafcff;
       text-shadow: 0 0 12px var(--neon-soft), 0 0 2px rgba(255,255,255,.4);
     }
+    /* 顶部 COMPETE! 品牌字：粗体斜体 + 流光渐变，! 用对比红 */
+    h1.brand-title {
+      font-size: clamp(28px, 9vw, 42px);
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      font-style: italic;
+      line-height: 1.05;
+      margin: 18px 0 2px;
+      padding-top: 8px;     /* 给 auto-hide 的顶部按钮栏留出空间 */
+      white-space: nowrap;
+      background: linear-gradient(180deg, #eafcff 0%, #7fd8ff 55%, #2fb8ff 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 14px rgba(56,224,255,.55)) drop-shadow(0 2px 4px rgba(0,0,0,.4));
+    }
+    h1.brand-title .brand-bang {
+      display: inline-block;
+      color: #ff5d6c;
+      -webkit-text-fill-color: #ff5d6c;     /* 跳出渐变填充 */
+      background: none;
+      filter: drop-shadow(0 0 12px rgba(255,93,108,.7));
+      margin-left: 0.05em;
+      animation: bangPulse 1.4s ease-in-out infinite;
+    }
+    @keyframes bangPulse {
+      0%, 100% { transform: rotate(0)    scale(1); }
+      50%      { transform: rotate(-8deg) scale(1.15); }
+    }
     .subtitle { text-align: center; color: var(--muted); font-size: 12px; margin-bottom: 18px; letter-spacing: .5px; }
 
     .input-card {
@@ -86,7 +113,24 @@
     .field input:focus { border-color: var(--neon); box-shadow: 0 0 0 2px rgba(56,224,255,.18), 0 0 14px rgba(56,224,255,.3); }
     .field.a input:focus { border-color: var(--accent-a); }
     .field.b input:focus { border-color: var(--accent-b); }
-    .vs-mark { text-align: center; color: var(--neon); font-weight: bold; margin: 4px 0 12px; letter-spacing: 2px; text-shadow: 0 0 10px var(--neon-soft); }
+    .vs-mark {
+      text-align: center;
+      color: var(--neon);
+      font-weight: 900;
+      font-size: 36px;             /* 原来约 16px，现在做大三倍 */
+      letter-spacing: 8px;
+      margin: 8px 0 14px;
+      font-style: italic;
+      line-height: 1;
+      background: linear-gradient(180deg, #eafcff 0%, #38e0ff 60%, #2fb8ff 100%);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 14px rgba(56,224,255,.7)) drop-shadow(0 0 3px rgba(255,255,255,.4));
+      animation: vsPulse 1.6s ease-in-out infinite;
+    }
+    @keyframes vsPulse {
+      0%,100% { transform: scale(1);    filter: drop-shadow(0 0 12px rgba(56,224,255,.55)) drop-shadow(0 0 3px rgba(255,255,255,.4)); }
+      50%     { transform: scale(1.08); filter: drop-shadow(0 0 20px rgba(56,224,255,.95)) drop-shadow(0 0 5px rgba(255,255,255,.6)); }
+    }
 
     button#start {
       width: 100%;
@@ -264,18 +308,34 @@
       80% { transform: translate(2px,1px); }
     }
 
-    /* 声音开关 */
+    /* ===================== 顶部按钮栏（auto-hide） =====================
+     * 一条横贯顶部的固定栏，容纳：左侧排行榜，右侧 BGM/历史/音效。
+     * 向下滚动时整条用 translateY(-110%) 滑出视口，向上滚动立即回来。
+     * 始终 position:fixed + z-index 高于内容，避免被弹窗遮。
+     */
+    .top-bar {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px;
+      padding: calc(env(safe-area-inset-top) + 8px) 12px 8px;
+      pointer-events: none;     /* 让中间空白处的滚动/点击穿透到下层 */
+      transition: transform .26s ease, opacity .26s ease;
+      will-change: transform;
+    }
+    .top-bar > * { pointer-events: auto; }
+    .top-bar.hidden { transform: translateY(-110%); opacity: 0; }
+    .top-bar-right { display: flex; align-items: center; gap: 6px; }
+
+    /* 顶部按钮：现在都是 top-bar 的子元素，不再 fixed */
     .sound-toggle {
-      position: fixed; top: calc(env(safe-area-inset-top) + 8px); right: 12px;
-      z-index: 20; width: 38px; height: 38px; border-radius: 50%;
+      width: 38px; height: 38px; border-radius: 50%;
       border: 1px solid var(--line); background: rgba(10,30,55,.85); color: var(--text);
       font-size: 18px; cursor: pointer; line-height: 36px; text-align: center; padding: 0;
       box-shadow: 0 0 12px rgba(56,224,255,.25);
     }
-    /* 历史按钮：放在声音按钮左边 */
     .history-toggle {
-      position: fixed; top: calc(env(safe-area-inset-top) + 8px); right: 58px;
-      z-index: 20; width: 38px; height: 38px; border-radius: 50%;
+      position: relative;
+      width: 38px; height: 38px; border-radius: 50%;
       border: 1px solid var(--line); background: rgba(10,30,55,.85); color: var(--text);
       font-size: 18px; cursor: pointer; line-height: 36px; text-align: center; padding: 0;
       box-shadow: 0 0 12px rgba(56,224,255,.25);
@@ -955,10 +1015,23 @@
       text-shadow: 0 0 12px var(--neon-soft);
     }
     .splash-title {
-      font-size: 44px; font-weight: 900; letter-spacing: 4px; line-height: 1.1;
-      background: linear-gradient(180deg, #ffffff, #7fd8ff 60%, #2fb8ff);
+      /* clamp 让 COMPETE! 在小屏不溢出，大屏更壮观 */
+      font-size: clamp(50px, 16vw, 88px);
+      font-weight: 900; letter-spacing: 0.08em; line-height: 1.0;
+      font-style: italic;
+      white-space: nowrap;
+      background: linear-gradient(180deg, #ffffff, #7fd8ff 55%, #2fb8ff 100%);
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 0 18px rgba(56,224,255,.6));
+      filter: drop-shadow(0 0 24px rgba(56,224,255,.7)) drop-shadow(0 4px 8px rgba(0,0,0,.4));
+    }
+    .splash-title .title-bang {
+      display: inline-block;
+      color: #ff5d6c;
+      -webkit-text-fill-color: #ff5d6c;
+      background: none;
+      filter: drop-shadow(0 0 20px rgba(255,93,108,.85));
+      margin-left: 0.06em;
+      animation: bangPulse 1.4s ease-in-out infinite;
     }
     .splash-sub { font-size: 13px; color: #a9cdf0; margin-top: 14px; line-height: 1.7; max-width: 320px; }
     .splash-enter {
@@ -1184,10 +1257,9 @@
       max-width: 320px;
     }
 
-    /* ===================== BGM 控制条（顶部右上角，紧邻音效按钮） ===================== */
+    /* ===================== BGM 控制条（top-bar 子元素） ===================== */
     .bgm-bar {
-      position: fixed; top: calc(env(safe-area-inset-top) + 8px); right: 104px;
-      z-index: 20; display: flex; align-items: center; gap: 4px;
+      display: flex; align-items: center; gap: 4px;
       padding: 0 6px 0 8px; height: 38px; border-radius: 999px;
       background: rgba(10,30,55,.85); border: 1px solid var(--line);
       box-shadow: 0 0 12px rgba(56,224,255,.22);
@@ -1208,18 +1280,14 @@
       background: #04101f; color: var(--text);
     }
     @media (max-width: 380px) {
-      /* 小屏避让历史按钮：把 BGM 条挪到下一行 */
-      .bgm-bar {
-        top: calc(env(safe-area-inset-top) + 54px); right: 12px;
-      }
+      /* 小屏：把下拉框宽度缩小 */
+      .bgm-bar select { max-width: 76px; font-size: 10px; }
     }
 
     /* ===================== 排行榜入口按钮 + 弹窗 ===================== */
-    /* 放在左上角：右上角已经被音效/历史/BGM 三件占满，且 BGM 选条窄屏会下移
-     * 把它挤掉。左上角是独立空间，永远不会被遮。 */
+    /* 现在是 top-bar 的子元素（左侧），不再独立 fixed */
     .lb-toggle {
-      position: fixed; top: calc(env(safe-area-inset-top) + 8px); left: 12px;
-      z-index: 20; width: 38px; height: 38px; border-radius: 50%;
+      width: 38px; height: 38px; border-radius: 50%;
       border: 1px solid rgba(255,210,74,.5);
       background: linear-gradient(135deg, rgba(60,40,8,.85), rgba(10,30,55,.85));
       color: var(--text);
@@ -1486,37 +1554,44 @@
   <!-- ========== 开始界面（落地页） ========== -->
   <div class="splash" id="splash">
     <div class="splash-inner">
-      <div class="splash-logo">A R E N A · 竞 技 场</div>
-      <div class="splash-title">名 字<br>对 战 塔</div>
+      <div class="splash-logo">A R E N A · 跨次元竞技场</div>
+      <div class="splash-title">COMPETE<span class="title-bang">!</span></div>
       <div class="splash-sub">
-        输入名字，AI 生成专属角色与技能。<br>
-        两种玩法：名字对战分胜负，或闯关试炼之塔层层强化登顶。
+        让你心中的角色，跨次元一决高下。<br>
+        三种玩法：混沌出击、试炼之塔、故事对决。
       </div>
       <button class="splash-enter" id="splashEnter">进 入</button>
       <div class="splash-hint">点击进入 · 建议开启音效体验</div>
     </div>
   </div>
 
-  <button class="sound-toggle" id="soundToggle" title="开/关音效">🔊</button>
-  <button class="history-toggle" id="historyToggle" title="历史档案">
-    📜<span class="ht-badge" id="historyBadge">0</span>
-  </button>
-  <button class="lb-toggle" id="lbToggle" title="排行榜">🏆</button>
-  <div class="bgm-bar" id="bgmBar">
-    <button class="bgm-toggle" id="bgmToggle" title="播放/暂停背景音乐">🎵</button>
-    <select id="bgmSelect" title="背景音乐">
-      <option value="none">🔇 关闭</option>
-      <option value="blaze">🔥 霸气进行曲</option>
-      <option value="pulse">⚡ 电子脉冲</option>
-      <option value="epic">🎺 史诗鼓点</option>
-    </select>
+  <!-- 顶部按钮栏（auto-hide）：默认显示在顶部，向下滚动时整条隐去，
+       向上滚动时立即露出。永远固定在视口顶部，不占文档流。 -->
+  <div class="top-bar" id="topBar">
+    <button class="lb-toggle" id="lbToggle" title="排行榜">🏆</button>
+    <div class="top-bar-right">
+      <div class="bgm-bar" id="bgmBar">
+        <button class="bgm-toggle" id="bgmToggle" title="播放/暂停背景音乐">🎵</button>
+        <select id="bgmSelect" title="背景音乐">
+          <option value="none">🔇 关闭</option>
+          <option value="blaze">🔥 霸气进行曲</option>
+          <option value="pulse">⚡ 电子脉冲</option>
+          <option value="epic">🎺 史诗鼓点</option>
+        </select>
+      </div>
+      <button class="history-toggle" id="historyToggle" title="历史档案">
+        📜<span class="ht-badge" id="historyBadge">0</span>
+      </button>
+      <button class="sound-toggle" id="soundToggle" title="开/关音效">🔊</button>
+    </div>
   </div>
-  <h1 id="appTitle">⚔️ 名字对战</h1>
-  <div class="subtitle" id="appSubtitle">输入两个名字，AI 联网生成角色并自动开战</div>
+
+  <h1 id="appTitle" class="brand-title">COMPETE<span class="brand-bang">!</span></h1>
+  <div class="subtitle" id="appSubtitle">让你心中的角色，跨次元一决高下</div>
 
   <!-- 模式切换 -->
   <div class="mode-switch" id="modeSwitch">
-    <button type="button" data-mode="battle" class="active">⚔️ 名字对战</button>
+    <button type="button" data-mode="battle" class="active">⚔️ 混沌出击</button>
     <button type="button" data-mode="tower">🗼 试炼之塔</button>
     <button type="button" data-mode="story">📖 故事对决</button>
   </div>
@@ -3566,13 +3641,12 @@
       // 离开故事模式时停止 BGM（在故事/对战中开过的不希望串到输入页）
       if (!story && !battle && !tower) BGM.stop();
 
-      const titles = { battle: "⚔️ 名字对战", tower: "🗼 试炼之塔", story: "📖 故事对决" };
+      // 顶部 H1 保持为 COMPETE! 品牌，不再随模式变化；只更新副标题
       const subs = {
-        battle: "输入两个名字，AI 联网生成角色并自动开战",
-        tower: "输入勇者之名与挑战场地，手动选招连闯三层试炼",
-        story: "输入两位虚拟角色，AI 写一场三局两胜的热血解说对决",
+        battle: "混沌出击 · 输入两个名字，AI 联网生成角色并自动开战",
+        tower:  "试炼之塔 · 输入勇者之名与挑战场地，连闯三层试炼",
+        story:  "故事对决 · 输入两位虚拟角色，AI 写一场三局两胜的热血解说",
       };
-      $("appTitle").textContent = titles[mode] || titles.battle;
       $("appSubtitle").textContent = subs[mode] || subs.battle;
       document.querySelectorAll("#modeSwitch button").forEach((b) =>
         b.classList.toggle("active", b.dataset.mode === mode)
@@ -4008,6 +4082,45 @@
     });
     // 默认选中第一首但不自动播放；用户首次点击播放按钮 / 进入战斗才会开
     $("bgmSelect").value = "blaze";
+
+    /* ------------------ 顶部 top-bar 滚动隐藏/显示 ------------------
+     * 向下滚动 → 隐藏（让出阅读空间）；向上滚动 → 立刻露出。
+     * 在视口顶部 50px 之内总是显示，避免页面顶部反而看不到按钮。
+     * 用 rAF 节流，被动监听以提升滚动性能。 */
+    (() => {
+      const bar = $("topBar");
+      if (!bar) return;
+      let lastY = window.scrollY;
+      let pending = false;
+      const SHOW_NEAR_TOP = 50;     // 顶部 50px 内永远显示
+      const HIDE_THRESHOLD = 6;     // 单次滚动至少 6px 才响应（防抖）
+      const onScroll = () => {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(() => {
+          const y = window.scrollY;
+          const dy = y - lastY;
+          if (y < SHOW_NEAR_TOP) {
+            bar.classList.remove("hidden");
+          } else if (dy > HIDE_THRESHOLD) {
+            bar.classList.add("hidden");
+          } else if (dy < -HIDE_THRESHOLD) {
+            bar.classList.remove("hidden");
+          }
+          lastY = y;
+          pending = false;
+        });
+      };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      // 任何弹窗打开时强制显示一下，便于关闭
+      ["lbModal", "historyModal", "skillModal", "resultModal", "upgradeModal", "mgModal"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        new MutationObserver(() => {
+          if (el.classList.contains("open")) bar.classList.remove("hidden");
+        }).observe(el, { attributes: true, attributeFilter: ["class"] });
+      });
+    })();
 
     /* ------------------ 🎲 随机角色池（移植自 compete!/js/character_pool.js） ------------------
      * ~260 个公认的动漫/游戏/影视/虚拟 IP 角色名 + 一组试炼场地。
