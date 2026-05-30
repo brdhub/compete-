@@ -1254,7 +1254,10 @@
     }
     .lb-tabs button {
       flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px;
-      border: none; border-radius: 8px; background: transparent; color: var(--muted);
+      border: none; border-radius: 8px; background: transparent;
+      /* 提高与深色背景的对比度：原 var(--muted)=#7fa6cc 在 rgba(8,20,40,.7) 上偏灰，
+       * 改用更亮的 #c8e0ff，未激活 tab 也清晰可读 */
+      color: #c8e0ff;
       cursor: pointer; transition: background .15s, color .15s;
     }
     .lb-tabs button.active {
@@ -1274,12 +1277,13 @@
     .lb-podium .pcol:not([disabled]):active { transform: scale(.97); }
     .lb-podium .pmedal { font-size: 28px; margin-bottom: 2px; }
     .lb-podium .pname {
-      font-size: 12px; font-weight: 700; color: #eafcff; text-align: center;
+      font-size: 13px; font-weight: 700; color: #ffffff; text-align: center;
       max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,.6);
     }
     .lb-podium .pnum {
-      font-size: 18px; font-weight: 800; color: #ffd24a; margin-bottom: 4px;
-      text-shadow: 0 0 10px rgba(255,210,74,.5);
+      font-size: 19px; font-weight: 900; color: #ffe066; margin-bottom: 4px;
+      text-shadow: 0 0 12px rgba(255,210,74,.7), 0 1px 2px rgba(0,0,0,.6);
     }
     .lb-podium .pbar {
       width: 100%; border-radius: 8px 8px 0 0;
@@ -1299,7 +1303,7 @@
       width: 100%; max-width: 460px; flex: 1; overflow-y: auto;
       display: flex; flex-direction: column; gap: 6px;
     }
-    .lb-empty { text-align: center; color: var(--muted); padding: 40px 16px; font-size: 13px; }
+    .lb-empty { text-align: center; color: #9fbfdf; padding: 40px 16px; font-size: 13px; line-height: 1.7; }
     .lb-row {
       display: grid; grid-template-columns: 32px 1fr auto; gap: 8px; align-items: center;
       padding: 10px 12px; border-radius: 10px; cursor: pointer;
@@ -1312,11 +1316,13 @@
       text-shadow: 0 0 8px var(--neon-soft);
     }
     .lb-row .nm {
-      font-size: 13px; font-weight: 700; color: #eafcff;
+      font-size: 13px; font-weight: 700; color: #ffffff;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .lb-row .nm .nm-sec { display: block; font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 2px; }
-    .lb-row .pr { font-size: 15px; font-weight: 800; color: #ffd24a; text-shadow: 0 0 8px rgba(255,210,74,.4); }
+    /* 第二行（"X 胜 / Y 场" 这类数据）原来用 var(--muted)=#7fa6cc 太灰，
+     * 改用偏蓝白 #b8d4f0 在 rgba(28,40,80,.6) 卡片上对比度明显更高 */
+    .lb-row .nm .nm-sec { display: block; font-size: 11px; color: #b8d4f0; font-weight: 500; margin-top: 2px; }
+    .lb-row .pr { font-size: 16px; font-weight: 800; color: #ffe066; text-shadow: 0 0 10px rgba(255,210,74,.55); }
 
     /* ===================== 故事对决模式 ===================== */
     .story-title { text-align: center; margin-bottom: 14px; }
