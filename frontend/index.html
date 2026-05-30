@@ -1286,26 +1286,23 @@
     }
 
     /* ===================== 音频条：SFX + BGM 合并在一个胶囊里 ===================== */
-    /* 布局：🔊 音效开关 | 分隔线 | 🎵 BGM 播放/暂停 | BGM 选曲下拉 */
+    /* 一个统一开关 + BGM 选曲下拉，点击开关同时管理音效 + 背景音乐 */
     .audio-bar {
       display: flex; align-items: center; gap: 4px;
       padding: 0 6px 0 4px; height: 38px; border-radius: 999px;
       background: rgba(10,30,55,.85); border: 1px solid var(--line);
       box-shadow: 0 0 12px rgba(56,224,255,.22);
     }
-    .audio-bar .audio-sfx,
-    .audio-bar .bgm-toggle {
+    .audio-bar .audio-toggle {
       background: none; border: none; color: var(--text);
       font-size: 16px; cursor: pointer; padding: 0;
       width: 30px; height: 30px; line-height: 30px; text-align: center;
       border-radius: 50%;
     }
-    .audio-bar .audio-sfx:hover,
-    .audio-bar .bgm-toggle:hover { background: rgba(56,224,255,.15); }
-    .audio-bar .audio-sep {
-      width: 1px; height: 18px; background: rgba(120,200,255,.3);
-      flex: none;
-    }
+    .audio-bar .audio-toggle:hover { background: rgba(56,224,255,.15); }
+    /* 静音态：图标稍微变暗，让"关"的视觉反馈更明显 */
+    .audio-bar.muted .audio-toggle { opacity: .55; }
+    .audio-bar.muted { box-shadow: none; }
     .audio-bar select {
       background: transparent; border: none; color: var(--text);
       font-size: 11px; padding: 4px 18px 4px 4px; outline: none;
@@ -1717,13 +1714,11 @@
   <div class="top-bar hidden" id="topBar">
     <button class="lb-toggle" id="lbToggle" title="排行榜">🏆</button>
     <div class="top-bar-right">
-      <!-- 音频条：左音效（SFX）+ 中 BGM 播放/暂停 + 右 BGM 选曲 -->
+      <!-- 音频开关：一键管 SFX + BGM，不分别。点击切换"全开/全关"。
+           BGM 选曲 dropdown 不再有"关闭"选项 — 想关声音请点喇叭图标。 -->
       <div class="audio-bar" id="audioBar">
-        <button class="audio-sfx" id="soundToggle" title="开/关音效">🔊</button>
-        <span class="audio-sep"></span>
-        <button class="bgm-toggle" id="bgmToggle" title="播放/暂停背景音乐">🎵</button>
+        <button class="audio-toggle" id="audioToggle" title="开/关声音（音效 + 背景音乐）">🎵</button>
         <select id="bgmSelect" title="背景音乐">
-          <option value="none">🔇 关闭</option>
           <option value="blaze">🔥 霸气进行曲</option>
           <option value="pulse">⚡ 电子脉冲</option>
           <option value="epic">🎺 史诗鼓点</option>
@@ -2249,6 +2244,7 @@
       return {
         whoosh, hit, whiff, ko, fanfare, guard, block,
         toggle() { enabled = !enabled; if (enabled) ac(); return enabled; },
+        setEnabled(b) { enabled = !!b; if (enabled) ac(); return enabled; },
         get on() { return enabled; },
         // 用户首次交互时解锁音频（移动端策略要求）
         unlock() { ac(); },
@@ -3933,10 +3929,7 @@
     document.querySelectorAll("#modeSwitch button").forEach((b) =>
       b.addEventListener("click", () => { Sound.unlock(); switchMode(b.dataset.mode); })
     );
-    $("soundToggle").addEventListener("click", () => {
-      const on = Sound.toggle();
-      $("soundToggle").textContent = on ? "🔊" : "🔇";
-    });
+    // 旧的独立 #soundToggle 已合并进 #audioToggle，不再需要单独绑定
 
     /* ================================================================== *
      * 📖 乱斗模式（compete! 移植）
@@ -3956,6 +3949,33 @@
       saved: false,              // 防重复保存
       busy: false,
     };
+
+    /* 等待 AI 生成回合时的随机沉浸感文案：每 1.5s 换一条，替代"解说员构思中…"
+     * 移植自 compete!/js/config.js + screens/battle.js#startLoadingRotation */
+    const STORY_LOADING_PHRASES = [
+      "正在模拟战场环境…",
+      "双方选手正在做最后准备…",
+      "解说席就位，麦克风测试中…",
+      "正在加载必杀技弹道轨迹…",
+      "裁判正在检查双方装备…",
+      "观众席的应援棒已点亮…",
+      "正在计算胜负的平行可能性…",
+      "战场结界展开中…",
+      "正在为这一回合注入热血…",
+      "命运的骰子正在滚动…",
+      "正在召唤戏剧性的转折…",
+      "对战引擎全速运转中…",
+    ];
+    let _storyLoadingTimer = null;
+    function startStoryLoadingRotation(btn) {
+      const pick = () => STORY_LOADING_PHRASES[Math.floor(Math.random() * STORY_LOADING_PHRASES.length)];
+      btn.textContent = pick();
+      stopStoryLoadingRotation();
+      _storyLoadingTimer = setInterval(() => { btn.textContent = pick(); }, 1500);
+    }
+    function stopStoryLoadingRotation() {
+      if (_storyLoadingTimer) { clearInterval(_storyLoadingTimer); _storyLoadingTimer = null; }
+    }
 
     function resetStoryState() {
       storyState.pro = null; storyState.ant = null;
@@ -4154,9 +4174,8 @@
         $("storyArena").style.display = "block";
         renderStoryArena();
         $("status").innerHTML = `角色已就绪 <span class="badge">${data.source === "claude" ? "联网生成" : "模拟模式"}</span>`;
-        // 进入战斗，自动放一首默认 BGM（用户切关闭则不放）
-        const sel = $("bgmSelect");
-        if (sel && sel.value !== "none") BGM.start(sel.value);
+        // 进入战斗，按当前音频开关状态启动 BGM（关了就不放）
+        if (audioOn) BGM.start($("bgmSelect").value);
       } catch (e) {
         $("status").textContent = "出错了：" + e.message;
       } finally {
@@ -4170,7 +4189,9 @@
       const btn = $("storyNextRound");
       btn.disabled = true;
       const nextNo = storyState.roundNumber + 1;
-      btn.textContent = `🎙️ 解说员构思第 ${nextNo} 回合中…`;
+      // 等待 API 时按钮文案不再固定为"解说员构思第 N 回合中…"，
+      // 改成每 1.5s 随机轮换的沉浸感文案
+      startStoryLoadingRotation(btn);
       const myGen = startRun();
 
       // 先播 FIGHT! 入场特效（与请求并行；不阻塞 API）
@@ -4232,14 +4253,17 @@
           refreshHistoryBadge();
         } else {
           btn.disabled = false;
+          stopStoryLoadingRotation();
           btn.textContent = `⚔️ 开打第 ${nextNo + 1} 回合`;
         }
       } catch (e) {
         if (isStale(myGen)) return;
         $("status").textContent = "出错了：" + e.message;
         btn.disabled = false;
+        stopStoryLoadingRotation();
         btn.textContent = `重试第 ${nextNo} 回合`;
       } finally {
+        stopStoryLoadingRotation();
         storyState.busy = false;
       }
     }
@@ -4369,23 +4393,40 @@
       });
     });
 
-    /* ------------------ BGM 控制条 ------------------ */
-    function updateBgmIcon() {
-      $("bgmToggle").textContent = BGM.isPlaying ? "🎵" : "🔇";
+    /* ------------------ 音频统一控制：SFX + BGM 一个开关管 ------------------
+     * 设计：把"音效"和"音乐"合并成一个布尔状态 audioOn。
+     *   - audioOn=true  : Sound 启用 + BGM 播放当前选中的曲目
+     *   - audioOn=false : Sound 静音 + BGM 停止
+     * 点击 #audioToggle 按钮切换；切换 BGM 选曲下拉只换曲不改开关状态。
+     * 不再有"关闭音乐"选项 — 想关声音必须点喇叭图标。
+     */
+    let audioOn = true;
+    function applyAudioState() {
+      const bar = $("audioBar");
+      const btn = $("audioToggle");
+      Sound.setEnabled(audioOn);
+      if (audioOn) {
+        const sel = $("bgmSelect");
+        // 重新启动 BGM 播放当前选中曲目（若已在放就保持播放）
+        if (!BGM.isPlaying) BGM.start(sel.value);
+        btn.textContent = "🎵";
+        bar.classList.remove("muted");
+      } else {
+        BGM.stop();
+        btn.textContent = "🔇";
+        bar.classList.add("muted");
+      }
     }
+    $("audioToggle").addEventListener("click", () => {
+      Sound.unlock();         // iOS/Safari 必须在用户手势里解锁
+      audioOn = !audioOn;
+      applyAudioState();
+    });
     $("bgmSelect").addEventListener("change", () => {
       Sound.unlock();
-      BGM.setTrack($("bgmSelect").value);
-      updateBgmIcon();
+      BGM.setTrack($("bgmSelect").value);   // 立即换曲（若正在播）
     });
-    $("bgmToggle").addEventListener("click", () => {
-      Sound.unlock();
-      const sel = $("bgmSelect");
-      if (BGM.isPlaying) BGM.stop();
-      else if (sel.value !== "none") BGM.start(sel.value);
-      updateBgmIcon();
-    });
-    // 默认选中第一首但不自动播放；用户首次点击播放按钮 / 进入战斗才会开
+    // 默认选第一首；audioOn=true 但 BGM 不自动播放 — 等用户进入战斗 / 点开关才开
     $("bgmSelect").value = "blaze";
 
     /* ------------------ 顶部 top-bar 默认隐藏，按需召出 ------------------
