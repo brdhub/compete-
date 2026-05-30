@@ -1,0 +1,23 @@
+# 环境变量与密钥
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code 工作目录 + 本轮开发的 verify 脚本（依赖本地 dev server，不入库）
+.claude/
+verify_*.py
+
+# 运行时数据：排行榜的比赛存档（每个用户本地自己产生，不需要进仓库）
+backend/data/

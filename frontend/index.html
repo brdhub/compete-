@@ -1,0 +1,4398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <!-- 移动端优先：禁止缩放，按设备宽度自适应 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f1020" />
+  <title>名字对战</title>
+  <!-- 内联 SVG emoji 图标：避免浏览器请求 /favicon.ico 产生 404 -->
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22&gt;&lt;text y=%22.9em%22 font-size=%2290%22&gt;⚔️&lt;/text&gt;&lt;/svg&gt;" />
+  <style>
+    :root {
+      --bg: #04101f;
+      --bg2: #071a33;
+      --card: rgba(16, 38, 68, 0.72);
+      --card-solid: #0c2240;
+      --accent-a: #2fd0ff;   /* 正方·电光青蓝 */
+      --accent-b: #ff5d6c;   /* 反方·赤红 */
+      --neon: #38e0ff;       /* 霓虹主色 */
+      --neon-soft: rgba(56, 224, 255, .55);
+      --text: #eaf6ff;
+      --muted: #7fa6cc;
+      --hp-bg: #0a2138;
+      --line: rgba(80, 180, 255, .28);
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(40,150,255,.30), transparent 60%),
+        radial-gradient(800px 500px at 100% 100%, rgba(30,120,220,.22), transparent 55%),
+        linear-gradient(160deg, var(--bg2) 0%, var(--bg) 70%);
+      background-attachment: fixed;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      min-height: 100vh;
+      position: relative;
+      /* 适配 iPhone 刘海安全区 */
+      padding: env(safe-area-inset-top) 14px calc(env(safe-area-inset-bottom) + 14px) 14px;
+      max-width: 540px;
+      margin: 0 auto;
+    }
+    /* 科技感背景层：细网格 + 流动的霓虹光晕 */
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background-image:
+        linear-gradient(rgba(80,180,255,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(80,180,255,.06) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: radial-gradient(circle at 50% 30%, #000 55%, transparent 100%);
+      -webkit-mask-image: radial-gradient(circle at 50% 30%, #000 55%, transparent 100%);
+    }
+    h1 {
+      text-align: center;
+      font-size: 23px;
+      margin: 14px 0 4px;
+      letter-spacing: 3px;
+      font-weight: 800;
+      color: #eafcff;
+      text-shadow: 0 0 12px var(--neon-soft), 0 0 2px rgba(255,255,255,.4);
+    }
+    .subtitle { text-align: center; color: var(--muted); font-size: 12px; margin-bottom: 18px; letter-spacing: .5px; }
+
+    .input-card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+      box-shadow: 0 0 0 1px rgba(56,224,255,.08), 0 8px 30px rgba(0,10,30,.5), inset 0 1px 0 rgba(120,200,255,.12);
+      backdrop-filter: blur(6px);
+    }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+    .field input {
+      width: 100%;
+      padding: 13px 14px;
+      font-size: 16px; /* 16px 防止 iOS 自动放大 */
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(6, 22, 42, .85);
+      color: var(--text);
+      outline: none;
+      transition: border-color .18s, box-shadow .18s;
+    }
+    .field input:focus { border-color: var(--neon); box-shadow: 0 0 0 2px rgba(56,224,255,.18), 0 0 14px rgba(56,224,255,.3); }
+    .field.a input:focus { border-color: var(--accent-a); }
+    .field.b input:focus { border-color: var(--accent-b); }
+    .vs-mark { text-align: center; color: var(--neon); font-weight: bold; margin: 4px 0 12px; letter-spacing: 2px; text-shadow: 0 0 10px var(--neon-soft); }
+
+    button#start {
+      width: 100%;
+      padding: 15px;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      border: 1px solid rgba(120,220,255,.5);
+      border-radius: 12px;
+      color: #052033;
+      background: linear-gradient(100deg, #38e0ff, #5ca8ff);
+      box-shadow: 0 0 22px rgba(56,224,255,.45), inset 0 1px 0 rgba(255,255,255,.4);
+      cursor: pointer;
+    }
+    button#start:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status { text-align: center; color: var(--muted); font-size: 13px; min-height: 18px; margin: 12px 0; }
+
+    /* 角色面板 */
+    .arena { display: none; }
+    .fighters { display: flex; gap: 10px; margin-bottom: 14px; }
+    .fighter {
+      flex: 1;
+      background: var(--card);
+      border-radius: 14px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-top: 3px solid transparent;
+      box-shadow: 0 6px 24px rgba(0,12,30,.5), inset 0 1px 0 rgba(120,200,255,.1);
+      backdrop-filter: blur(6px);
+      transition: transform .15s;
+      position: relative;      /* 作为特效层的定位容器 */
+      overflow: visible;
+    }
+    .fighter.a { border-top-color: var(--accent-a); box-shadow: 0 0 18px rgba(47,208,255,.22), 0 6px 24px rgba(0,12,30,.5); }
+    .fighter.b { border-top-color: var(--accent-b); box-shadow: 0 0 18px rgba(255,93,108,.18), 0 6px 24px rgba(0,12,30,.5); }
+
+    /* 受击抖动：按伤害强弱分三档 */
+    .fighter.hit-light { animation: shake .26s; }
+    .fighter.hit       { animation: shake .3s; }
+    .fighter.hit-hard  { animation: shakeHard .42s; }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    @keyframes shakeHard {
+      0%,100% { transform: translate(0,0) rotate(0); }
+      15% { transform: translate(-9px,2px) rotate(-1.5deg); }
+      35% { transform: translate(8px,-2px) rotate(1.5deg); }
+      55% { transform: translate(-7px,1px) rotate(-1deg); }
+      75% { transform: translate(5px,-1px) rotate(.8deg); }
+    }
+
+    /* 出招者向对手扑出的前摇动作 */
+    .fighter.lunge-right { animation: lungeRight .28s ease-out; }
+    .fighter.lunge-left  { animation: lungeLeft .28s ease-out; }
+    @keyframes lungeRight {
+      0% { transform: translateX(0); }
+      55% { transform: translateX(14px) scale(1.04); }
+      100% { transform: translateX(0); }
+    }
+    @keyframes lungeLeft {
+      0% { transform: translateX(0); }
+      55% { transform: translateX(-14px) scale(1.04); }
+      100% { transform: translateX(0); }
+    }
+
+    /* 命中红光 / 暴击金光 */
+    .fighter.flash::after {
+      content: ""; position: absolute; inset: 0; border-radius: 14px;
+      background: radial-gradient(circle at center, rgba(255,90,108,.55), transparent 70%);
+      animation: flashFade .4s ease-out forwards; pointer-events: none; z-index: 6;
+    }
+    .fighter.flash-crit::after {
+      background: radial-gradient(circle at center, rgba(255,210,80,.8), rgba(255,120,40,.3) 60%, transparent 75%);
+      animation: flashFade .5s ease-out forwards;
+    }
+    @keyframes flashFade { from { opacity: 1; } to { opacity: 0; } }
+
+    /* 闪避：目标向外滑开并半透明 */
+    .fighter.dodge-right { animation: dodgeRight .4s ease; }
+    .fighter.dodge-left  { animation: dodgeLeft .4s ease; }
+    @keyframes dodgeRight {
+      0% { transform: translateX(0); opacity: 1; }
+      40% { transform: translateX(20px); opacity: .45; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+    @keyframes dodgeLeft {
+      0% { transform: translateX(0); opacity: 1; }
+      40% { transform: translateX(-20px); opacity: .45; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+
+    /* 特效叠加层：覆盖整个角色面板，承载刀光/沙尘/冲击波/飘字 */
+    .fx {
+      position: absolute; inset: 0; pointer-events: none;
+      overflow: visible; z-index: 8;
+    }
+
+    /* 刀光：一道斜向掠过的高光条 */
+    .slash {
+      position: absolute; top: 50%; left: 50%;
+      width: 160%; height: 8px; border-radius: 8px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.95), transparent);
+      box-shadow: 0 0 14px 3px rgba(180,220,255,.85);
+      transform: translate(-50%,-50%) rotate(var(--ang,-32deg)) scaleX(0);
+      opacity: 0;
+      animation: slashGo .26s ease-out forwards;
+    }
+    .slash.crit {
+      height: 12px;
+      background: linear-gradient(90deg, transparent, #fff, #ffe28a, #fff, transparent);
+      box-shadow: 0 0 22px 5px rgba(255,210,120,.95);
+    }
+    @keyframes slashGo {
+      0%   { opacity: 0; transform: translate(-50%,-50%) rotate(var(--ang,-32deg)) scaleX(0); }
+      35%  { opacity: 1; }
+      60%  { opacity: 1; transform: translate(-50%,-50%) rotate(var(--ang,-32deg)) scaleX(1); }
+      100% { opacity: 0; transform: translate(-50%,-50%) rotate(var(--ang,-32deg)) scaleX(1.05); }
+    }
+
+    /* 冲击波圆环 */
+    .shock {
+      position: absolute; top: 50%; left: 50%;
+      width: 24px; height: 24px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,.85);
+      transform: translate(-50%,-50%) scale(.2); opacity: .9;
+      animation: shockGo .42s ease-out forwards;
+    }
+    .shock.crit { border-color: rgba(255,210,120,.95); border-width: 4px; }
+    @keyframes shockGo {
+      0%   { transform: translate(-50%,-50%) scale(.2); opacity: .9; }
+      100% { transform: translate(-50%,-50%) scale(3.2); opacity: 0; }
+    }
+
+    /* 扬起的沙尘颗粒 */
+    .dust {
+      position: absolute; bottom: 10px; left: 50%;
+      width: 7px; height: 7px; border-radius: 50%;
+      background: radial-gradient(circle, #d9c79a, #9c8553);
+      opacity: .9;
+      animation: dustFly var(--dur,.6s) ease-out forwards;
+    }
+    @keyframes dustFly {
+      0%   { transform: translate(-50%,0) scale(1); opacity: .9; }
+      100% { transform: translate(calc(-50% + var(--dx,0px)), var(--dy,-40px)) scale(.2); opacity: 0; }
+    }
+
+    /* 飘动的伤害数字 */
+    .dmg {
+      position: absolute; top: 34%; left: 50%;
+      transform: translate(-50%,0); font-weight: 800;
+      font-size: 26px; color: #ff5d6c;
+      text-shadow: 0 2px 6px rgba(0,0,0,.6); white-space: nowrap;
+      animation: dmgRise .9s ease-out forwards;
+    }
+    .dmg.crit { font-size: 34px; color: #ffd24a; }
+    .dmg .crit-tag { display: block; font-size: 12px; letter-spacing: 2px; color: #ffb347; }
+    .dmg.miss { color: #9aa0c0; font-size: 20px; }
+    @keyframes dmgRise {
+      0%   { transform: translate(-50%,6px) scale(.6); opacity: 0; }
+      25%  { transform: translate(-50%,-6px) scale(1.15); opacity: 1; }
+      60%  { transform: translate(-50%,-22px) scale(1); opacity: 1; }
+      100% { transform: translate(-50%,-46px) scale(.95); opacity: 0; }
+    }
+
+    /* 整屏轻微震动（暴击/击倒时） */
+    body.quake { animation: quake .4s; }
+    @keyframes quake {
+      0%,100% { transform: translate(0,0); }
+      20% { transform: translate(-3px,2px); }
+      40% { transform: translate(3px,-2px); }
+      60% { transform: translate(-2px,-1px); }
+      80% { transform: translate(2px,1px); }
+    }
+
+    /* 声音开关 */
+    .sound-toggle {
+      position: fixed; top: calc(env(safe-area-inset-top) + 8px); right: 12px;
+      z-index: 20; width: 38px; height: 38px; border-radius: 50%;
+      border: 1px solid var(--line); background: rgba(10,30,55,.85); color: var(--text);
+      font-size: 18px; cursor: pointer; line-height: 36px; text-align: center; padding: 0;
+      box-shadow: 0 0 12px rgba(56,224,255,.25);
+    }
+    /* 历史按钮：放在声音按钮左边 */
+    .history-toggle {
+      position: fixed; top: calc(env(safe-area-inset-top) + 8px); right: 58px;
+      z-index: 20; width: 38px; height: 38px; border-radius: 50%;
+      border: 1px solid var(--line); background: rgba(10,30,55,.85); color: var(--text);
+      font-size: 18px; cursor: pointer; line-height: 36px; text-align: center; padding: 0;
+      box-shadow: 0 0 12px rgba(56,224,255,.25);
+    }
+    .history-toggle .ht-badge {
+      position: absolute; top: -4px; right: -4px;
+      min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+      background: linear-gradient(135deg,#ff9a3c,#ff5d6c);
+      font-size: 10px; font-weight: 800; line-height: 16px; color: #fff;
+      box-shadow: 0 0 8px rgba(255,93,108,.55);
+      display: none;
+    }
+    .history-toggle .ht-badge.show { display: inline-block; }
+
+    /* 历史弹窗 */
+    .history-modal {
+      position: fixed; inset: 0; z-index: 65; background: rgba(6,7,18,.86);
+      display: none; flex-direction: column; align-items: center;
+      padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 16px);
+      backdrop-filter: blur(4px);
+    }
+    .history-modal.open { display: flex; animation: modalFade .22s ease; }
+    .history-head {
+      width: 100%; max-width: 460px; display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 12px;
+    }
+    .history-head .hh-title {
+      font-size: 20px; font-weight: 800; letter-spacing: 2px;
+      background: linear-gradient(90deg,#5ce0ff,#9fe6ff,#5ce0ff);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 8px rgba(56,224,255,.45));
+    }
+    .history-head .hh-actions { display: flex; gap: 6px; }
+    .history-head .hh-btn {
+      font-size: 11px; padding: 6px 10px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--line); background: rgba(12,34,64,.6); color: var(--text);
+    }
+    .history-head .hh-btn.danger { color: #ff9aa3; border-color: rgba(255,93,108,.4); }
+    .history-tabs {
+      display: flex; gap: 4px; width: 100%; max-width: 460px;
+      padding: 4px; border-radius: 10px; background: rgba(8,20,40,.7);
+      border: 1px solid var(--line); margin-bottom: 12px;
+    }
+    .history-tabs button {
+      flex: 1; padding: 8px; font-size: 12px; font-weight: 700;
+      border: none; border-radius: 8px; background: transparent; color: var(--muted);
+      cursor: pointer; transition: background .15s, color .15s;
+    }
+    .history-tabs button.active {
+      color: #052033; background: linear-gradient(100deg,#38e0ff,#5ca8ff);
+      box-shadow: 0 0 14px rgba(56,224,255,.4);
+    }
+    .history-list {
+      width: 100%; max-width: 460px; flex: 1; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 10px;
+      padding-right: 4px;  /* 给滚动条留点空间 */
+    }
+    .history-empty {
+      text-align: center; color: var(--muted); font-size: 13px;
+      padding: 50px 20px; line-height: 1.7;
+    }
+    .history-item {
+      position: relative; padding: 12px 14px;
+      background: linear-gradient(150deg, rgba(28,40,80,.7), rgba(10,18,40,.85));
+      border: 1px solid rgba(80,140,200,.3); border-radius: 14px;
+      box-shadow: 0 6px 16px rgba(0,0,0,.35);
+    }
+    .history-item.victory { border-color: rgba(54,211,153,.5); box-shadow: 0 0 14px rgba(54,211,153,.2), 0 6px 16px rgba(0,0,0,.35); }
+    .history-item.defeat  { border-color: rgba(255,93,108,.45); }
+    .history-item .hi-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 8px; margin-bottom: 6px;
+    }
+    .history-item .hi-title { font-size: 14px; font-weight: 800; letter-spacing: 1px; color: #eafcff; }
+    .history-item .hi-time { font-size: 10px; color: var(--muted); }
+    .history-item .hi-meta {
+      display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .history-item .hi-tag {
+      padding: 2px 7px; border-radius: 999px;
+      background: rgba(56,224,255,.14); color: #9fe6ff;
+      border: 1px solid rgba(56,224,255,.3);
+    }
+    .history-item .hi-tag.victory { background: rgba(54,211,153,.18); color: #6fee9d; border-color: rgba(54,211,153,.45); }
+    .history-item .hi-tag.defeat { background: rgba(255,93,108,.16); color: #ff9aa3; border-color: rgba(255,93,108,.4); }
+    .history-item .hi-tag.ongoing { background: rgba(255,210,74,.16); color: #ffd24a; border-color: rgba(255,210,74,.4); }
+    .history-item .hi-skills {
+      display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;
+    }
+    .history-item .hi-skill {
+      font-size: 10px; padding: 2px 7px; border-radius: 6px;
+      background: rgba(20,40,72,.85); border: 1px solid rgba(80,140,200,.3);
+      color: var(--text);
+    }
+    .history-item .hi-skill.def { border-color: rgba(111,208,255,.45); color: #9fe6ff; }
+    .history-item .hi-actions { display: flex; gap: 8px; }
+    .history-item .hi-btn {
+      flex: 1; padding: 8px 10px; font-size: 12px; font-weight: 700;
+      border-radius: 9px; cursor: pointer; letter-spacing: 1px;
+    }
+    .history-item .hi-btn.primary {
+      border: 1px solid rgba(120,220,255,.55); color: #052033;
+      background: linear-gradient(100deg,#38e0ff,#4aa8ff);
+      box-shadow: 0 0 14px rgba(56,224,255,.4);
+    }
+    .history-item .hi-btn.ghost {
+      border: 1px solid var(--line); background: rgba(12,34,64,.6); color: var(--text);
+    }
+    .history-item .hi-btn.del {
+      flex: none; width: 38px; border: 1px solid rgba(255,93,108,.4);
+      background: rgba(40,12,18,.6); color: #ff9aa3;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .slash, .shock, .dust, .dmg, .fighter.flash::after, .fighter.flash-crit::after { animation-duration: .01ms !important; }
+    }
+    .fighter .name { font-size: 15px; font-weight: 700; color: #eafcff; }
+    .fighter .title { font-size: 11px; color: var(--muted); margin-bottom: 8px; min-height: 14px; }
+    .hpbar { height: 12px; background: var(--hp-bg); border-radius: 6px; overflow: hidden; margin-bottom: 4px; border: 1px solid rgba(80,180,255,.2); }
+    .hpfill { height: 100%; width: 100%; border-radius: 6px; transition: width .4s ease; }
+    .fighter.a .hpfill { background: linear-gradient(90deg, #1f8cff, #4de6ff); box-shadow: 0 0 10px rgba(77,230,255,.7); }
+    .fighter.b .hpfill { background: linear-gradient(90deg, #ff5d6c, #ff9a6c); box-shadow: 0 0 10px rgba(255,120,108,.6); }
+    .hptext { font-size: 11px; color: var(--muted); text-align: right; }
+    .skills { margin-top: 8px; }
+    .skill-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      background: rgba(20,48,82,.85);
+      color: var(--text);
+      padding: 3px 8px;
+      border-radius: 8px;
+      margin: 2px 3px 0 0;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: transform .1s, border-color .15s, background .15s;
+      -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none;  /* 长按不触发 iOS 系统菜单 */
+    }
+    .skill-chip:active { transform: scale(.94); }
+    .fighter.a .skill-chip { border-color: rgba(79,140,255,.35); }
+    .fighter.b .skill-chip { border-color: rgba(255,93,108,.35); }
+    .skill-chip .chip-dmg {
+      font-weight: 700; font-size: 9px; padding: 0 4px; border-radius: 6px;
+      background: rgba(255,255,255,.12); color: #ffd24a;
+    }
+    .skill-chip.def { border-color: rgba(111,208,255,.45) !important; }
+    .skill-chip .chip-dmg.def { color: #6fd0ff; }
+    .skill-chip .chip-cost {
+      font-size: 9px; font-weight: 700; padding: 0 4px; border-radius: 6px;
+      background: linear-gradient(135deg, rgba(56,224,255,.25), rgba(79,140,255,.25));
+      color: #9fe6ff; border: 1px solid rgba(56,224,255,.4);
+    }
+    .skill-chip .chip-cost.free { background: rgba(54,211,153,.22); color: #6fee9d; border-color: rgba(54,211,153,.5); }
+    .skill-chip .chip-tip { font-size: 9px; color: var(--muted); }
+    /* 长按高亮（press-pulse），告诉用户「再按住一会儿就会出现技能卡」 */
+    .skill-chip.pressing {
+      background: rgba(56,224,255,.18);
+      box-shadow: 0 0 10px rgba(56,224,255,.4);
+      transform: scale(.97);
+    }
+
+    /* 赛尔号风格技能详情弹窗 */
+    .skill-modal {
+      position: fixed; inset: 0; z-index: 50;
+      background: rgba(6,7,18,.78);
+      display: none; align-items: center; justify-content: center;
+      padding: 24px; backdrop-filter: blur(4px);
+    }
+    .skill-modal.open { display: flex; animation: modalFade .22s ease; }
+    @keyframes modalFade { from { opacity: 0; } to { opacity: 1; } }
+    .skill-card {
+      width: 100%; max-width: 360px;
+      position: relative;
+      background:
+        linear-gradient(160deg, rgba(56,80,160,.22), rgba(8,12,28,.92) 60%),
+        radial-gradient(circle at 80% 10%, rgba(79,140,255,.5), transparent 55%),
+        linear-gradient(160deg, #1a1d3a, #0a0c1f);
+      border-radius: 20px; overflow: hidden;
+      border: 1px solid rgba(120,170,255,.45);
+      box-shadow:
+        0 0 0 1px rgba(56,224,255,.15),
+        0 0 38px rgba(79,140,255,.45),
+        0 24px 60px rgba(0,0,0,.7);
+      transform: translateY(14px) scale(.94) rotateX(8deg);
+      animation: cardPop .35s cubic-bezier(.2,.9,.3,1.25) forwards;
+      transform-style: preserve-3d;
+    }
+    .skill-card.b {
+      border-color: rgba(255,140,150,.5);
+      background:
+        linear-gradient(160deg, rgba(200,50,80,.22), rgba(8,12,28,.92) 60%),
+        radial-gradient(circle at 80% 10%, rgba(255,93,108,.5), transparent 55%),
+        linear-gradient(160deg, #2a1018, #150810);
+      box-shadow:
+        0 0 0 1px rgba(255,93,108,.18),
+        0 0 38px rgba(255,93,108,.45),
+        0 24px 60px rgba(0,0,0,.7);
+    }
+    @keyframes cardPop { to { transform: translateY(0) scale(1) rotateX(0); } }
+    /* 卡顶部扫光：高光从左划过 */
+    .skill-card::before {
+      content: ""; position: absolute; top: 0; left: -60%;
+      width: 50%; height: 100%; pointer-events: none; z-index: 2;
+      background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.18) 50%, transparent 65%);
+      animation: cardSheen 1.6s ease-in-out infinite;
+    }
+    @keyframes cardSheen {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(420%); }
+    }
+    .skill-card .sc-head {
+      padding: 18px 18px 14px;
+      position: relative;
+      background: linear-gradient(135deg, var(--sc-accent, #4f8cff), transparent 140%);
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .skill-card.b .sc-head { --sc-accent: #ff5d6c; }
+    .skill-card .sc-owner { font-size: 11px; color: rgba(255,255,255,.85); letter-spacing: 1px; }
+    .skill-card .sc-name {
+      font-size: 24px; font-weight: 900; margin-top: 4px; letter-spacing: 2px;
+      text-shadow: 0 2px 12px rgba(0,0,0,.55), 0 0 18px rgba(255,255,255,.2);
+    }
+    /* 头部右上角：能量 cost 大徽章 */
+    .skill-card .sc-cost-badge {
+      position: absolute; top: 12px; right: 48px;
+      display: flex; align-items: center; gap: 4px;
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 800; letter-spacing: 1px;
+      background: rgba(8,18,38,.8); border: 1px solid rgba(150,230,255,.55);
+      color: #c6f1ff; box-shadow: 0 0 12px rgba(56,224,255,.45);
+    }
+    .skill-card .sc-cost-badge.free {
+      border-color: rgba(120,255,180,.55); color: #c6ffe1; box-shadow: 0 0 12px rgba(54,211,153,.45);
+    }
+    .skill-card .sc-stats {
+      display: flex; gap: 10px; padding: 14px 18px 4px;
+    }
+    .skill-card .sc-stat {
+      flex: 1; background: rgba(16,18,40,.85); border: 1px solid rgba(80,100,180,.3);
+      border-radius: 12px; padding: 9px 10px; text-align: center;
+      box-shadow: inset 0 0 8px rgba(40,60,140,.18);
+    }
+    .skill-card .sc-stat .k { font-size: 10px; color: var(--muted); letter-spacing: 1px; }
+    .skill-card .sc-stat .v { font-size: 19px; font-weight: 800; margin-top: 2px; }
+    .skill-card .sc-stat.pow .v { color: #ffd24a; text-shadow: 0 0 10px rgba(255,210,74,.6); }
+    .skill-card .sc-stat.acc .v { color: #6fd0ff; text-shadow: 0 0 10px rgba(111,208,255,.6); }
+    .skill-card .sc-bars { padding: 6px 18px 2px; }
+    .skill-card .sc-baritem { margin-bottom: 8px; }
+    .skill-card .sc-barlabel { display:flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+    .skill-card .sc-bartrack { height: 7px; border-radius: 4px; background: rgba(8,12,28,.85); overflow: hidden; border: 1px solid rgba(80,100,160,.25); }
+    .skill-card .sc-barfill { height: 100%; border-radius: 4px; transition: width .5s ease; box-shadow: 0 0 8px currentColor; }
+    .skill-card .sc-barfill.pow { background: linear-gradient(90deg,#ff9a3c,#ffd24a); color: rgba(255,210,74,.7); }
+    .skill-card .sc-barfill.acc { background: linear-gradient(90deg,#4f8cff,#6fd0ff); color: rgba(111,208,255,.7); }
+    .skill-card .sc-desc {
+      padding: 10px 18px 18px; font-size: 13px; line-height: 1.6; color: var(--text);
+    }
+    .skill-card .sc-desc .sc-quote { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .skill-card .sc-close {
+      position: absolute; top: 10px; right: 12px;
+      width: 28px; height: 28px; border-radius: 50%; border: none;
+      background: rgba(0,0,0,.4); color: #fff; font-size: 16px; cursor: pointer; line-height: 24px;
+      z-index: 3;
+    }
+
+    /* 出招播报横幅（赛尔号式技能名喊出） */
+    .callout {
+      position: fixed; left: 0; right: 0; top: 30%;
+      display: flex; justify-content: center; pointer-events: none; z-index: 40;
+    }
+    .callout-inner {
+      display: none; max-width: 88%;
+      padding: 10px 22px; border-radius: 999px;
+      background: linear-gradient(135deg, rgba(20,22,42,.95), rgba(40,44,80,.95));
+      border: 1px solid var(--co-accent, #4f8cff);
+      box-shadow: 0 0 24px var(--co-glow, rgba(79,140,255,.5));
+      text-align: center; white-space: nowrap; overflow: hidden;
+    }
+    .callout-inner.show { display: block; animation: calloutGo .9s ease forwards; }
+    .callout-inner .co-owner { font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+    .callout-inner .co-name { font-size: 19px; font-weight: 800; letter-spacing: 1px; }
+    .callout-inner .co-name .co-use { font-size: 12px; color: var(--muted); font-weight: 400; margin-right: 4px; }
+    @keyframes calloutGo {
+      0%   { opacity: 0; transform: translateY(10px) scale(.85); }
+      18%  { opacity: 1; transform: translateY(0) scale(1.04); }
+      30%  { transform: translateY(0) scale(1); }
+      82%  { opacity: 1; }
+      100% { opacity: 0; transform: translateY(-8px) scale(.98); }
+    }
+
+    .intro { background: var(--card); border-radius: 12px; padding: 12px; font-size: 13px; color: var(--text); margin-bottom: 14px; line-height: 1.5; border: 1px solid var(--line); backdrop-filter: blur(6px); }
+
+    .log { display: flex; flex-direction: column; gap: 8px; }
+    .log-item {
+      background: var(--card);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      border: 1px solid var(--line);
+      border-left: 3px solid rgba(80,180,255,.4);
+      backdrop-filter: blur(4px);
+      opacity: 0;
+      transform: translateY(8px);
+      animation: appear .3s forwards;
+    }
+    .log-item.a { border-left-color: var(--accent-a); }
+    .log-item.b { border-left-color: var(--accent-b); }
+    .log-item .turn-no { color: var(--neon); font-size: 11px; margin-right: 6px; }
+    @keyframes appear { to { opacity: 1; transform: translateY(0); } }
+
+    .winner {
+      text-align: center;
+      font-size: 20px;
+      font-weight: 800;
+      padding: 18px;
+      margin: 16px 0;
+      border-radius: 14px;
+      letter-spacing: 1px;
+      background: linear-gradient(135deg, rgba(20,60,110,.9), rgba(10,30,55,.9));
+      border: 1px solid rgba(80,180,255,.4);
+      box-shadow: 0 0 24px rgba(56,224,255,.3);
+      text-shadow: 0 0 12px var(--neon-soft);
+      display: none;
+    }
+    .replay {
+      width: 100%; padding: 13px; font-size: 15px; border: 1px solid var(--line);
+      border-radius: 12px; background: rgba(12,34,64,.6); color: var(--text); cursor: pointer;
+      display: none;
+    }
+    .badge { font-size: 10px; padding: 2px 6px; border-radius: 6px; background: rgba(56,224,255,.16); color: #9fe6ff; border: 1px solid rgba(56,224,255,.3); }
+
+    /* ===================== 模式切换器 ===================== */
+    .mode-switch {
+      display: flex; gap: 6px; background: rgba(8,24,46,.7); border: 1px solid var(--line);
+      border-radius: 12px; padding: 5px; margin: 0 0 16px;
+    }
+    .mode-switch button {
+      flex: 1; padding: 10px 6px; font-size: 14px; font-weight: 600;
+      border: none; border-radius: 8px; background: transparent; color: var(--muted);
+      cursor: pointer; transition: background .18s, color .18s;
+    }
+    .mode-switch button.active {
+      color: #052033; background: linear-gradient(100deg, #38e0ff, #5ca8ff);
+      box-shadow: 0 0 18px rgba(56,224,255,.45);
+    }
+
+    /* ===================== 试炼之塔 ===================== */
+    .tower-title { text-align: center; margin-bottom: 14px; }
+    .tower-title .tt-name {
+      font-size: 26px; font-weight: 800; letter-spacing: 3px;
+      background: linear-gradient(90deg, #5ce0ff, #38e0ff, #9fe6ff);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 10px rgba(56,224,255,.5));
+    }
+    .tower-title .tt-sub { font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
+
+    .tower-input-card .field.h input:focus { border-color: var(--neon); }
+    button#towerStart {
+      width: 100%; padding: 15px; font-size: 17px; font-weight: 700; letter-spacing: 1px;
+      border: 1px solid rgba(120,220,255,.5); border-radius: 12px; color: #052033;
+      background: linear-gradient(100deg, #38e0ff, #4aa8ff);
+      box-shadow: 0 0 22px rgba(56,224,255,.45), inset 0 1px 0 rgba(255,255,255,.4);
+      cursor: pointer;
+    }
+    button#towerStart:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* 楼层进度条 */
+    .tower-hud { display: none; margin-bottom: 14px; }
+    .floor-track { display: flex; align-items: center; justify-content: center; gap: 6px; margin-bottom: 10px; }
+    .floor-dot {
+      width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; border: 2px solid var(--line); color: var(--muted);
+      background: rgba(10,30,55,.8); transition: all .25s;
+    }
+    .floor-dot.cleared { border-color: #36d399; color: #36d399; background: rgba(54,211,153,.12); }
+    .floor-dot.current { border-color: var(--neon); color: var(--neon); box-shadow: 0 0 16px rgba(56,224,255,.6); transform: scale(1.12); }
+    .floor-link { width: 16px; height: 2px; background: var(--line); }
+    .floor-link.cleared { background: #36d399; }
+
+    .hero-stats {
+      display: flex; gap: 6px; background: var(--card); border-radius: 12px; padding: 10px;
+      border: 1px solid var(--line); backdrop-filter: blur(6px);
+    }
+    .hero-stats .hs-item { flex: 1; text-align: center; }
+    .hero-stats .hs-k { font-size: 10px; color: var(--muted); }
+    .hero-stats .hs-v { font-size: 16px; font-weight: 800; margin-top: 2px; }
+    .hero-stats .hs-item.hp .hs-v { color: #6fee9d; }
+    .hero-stats .hs-item.atk .hs-v { color: #ffd24a; }
+    .hero-stats .hs-item.def .hs-v { color: var(--neon); }
+    .hero-stats .hs-v .hs-up { color: #36d399; font-size: 11px; margin-left: 2px; }
+
+    /* ===================== 三选一强化 ===================== */
+    .upgrade-modal {
+      position: fixed; inset: 0; z-index: 60; background: rgba(6,7,18,.86);
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      padding: 22px; backdrop-filter: blur(3px);
+    }
+    .upgrade-modal.open { display: flex; animation: modalFade .25s ease; }
+    .upgrade-head { text-align: center; margin-bottom: 18px; }
+    .upgrade-head .uh-title { font-size: 22px; font-weight: 800; letter-spacing: 2px; }
+    .upgrade-head .uh-title .uh-spark {
+      background: linear-gradient(90deg,#ffd24a,#ff9a3c); -webkit-background-clip: text;
+      background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .upgrade-head .uh-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .upgrade-cards { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 420px; }
+    .upgrade-card {
+      position: relative; background: linear-gradient(150deg, #232646, #15172b);
+      border: 1px solid #3a3f6a; border-radius: 16px; padding: 14px 16px;
+      cursor: pointer; overflow: hidden; transform: translateY(14px); opacity: 0;
+      animation: cardIn .4s ease forwards;
+      transition: transform .14s, border-color .18s, box-shadow .18s;
+    }
+    .upgrade-card:nth-child(1) { animation-delay: .04s; }
+    .upgrade-card:nth-child(2) { animation-delay: .12s; }
+    .upgrade-card:nth-child(3) { animation-delay: .2s; }
+    @keyframes cardIn { to { transform: translateY(0); opacity: 1; } }
+    .upgrade-card:active { transform: scale(.97); }
+    .upgrade-card.common { border-color: #4a5078; }
+    .upgrade-card.rare { border-color: #4f8cff; box-shadow: 0 0 18px rgba(79,140,255,.25); }
+    .upgrade-card.epic {
+      border-color: #ffb347;
+      box-shadow: 0 0 22px rgba(255,180,71,.35);
+      background: linear-gradient(150deg, #3a2e46, #1b172b);
+    }
+    .upgrade-card .uc-row { display: flex; align-items: center; gap: 12px; }
+    .upgrade-card .uc-icon {
+      width: 46px; height: 46px; flex: none; border-radius: 12px; display: flex;
+      align-items: center; justify-content: center; font-size: 24px; background: #14162a;
+    }
+    .upgrade-card .uc-body { flex: 1; min-width: 0; }
+    .upgrade-card .uc-name { font-size: 16px; font-weight: 800; }
+    .upgrade-card .uc-desc { font-size: 12px; color: var(--muted); line-height: 1.5; margin-top: 3px; }
+    .upgrade-card .uc-rarity {
+      position: absolute; top: 10px; right: 12px; font-size: 9px; letter-spacing: 1px;
+      padding: 2px 7px; border-radius: 999px; font-weight: 700;
+    }
+    .upgrade-card.common .uc-rarity { background: #2a2d4a; color: #9aa0c0; }
+    .upgrade-card.rare .uc-rarity { background: rgba(79,140,255,.2); color: #6fd0ff; }
+    .upgrade-card.epic .uc-rarity { background: rgba(255,180,71,.22); color: #ffd24a; }
+
+    /* ===================== 结算 ===================== */
+    .result-modal {
+      position: fixed; inset: 0; z-index: 70; background: rgba(6,7,18,.92);
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      padding: 26px; text-align: center; backdrop-filter: blur(4px);
+    }
+    .result-modal.open { display: flex; animation: modalFade .3s ease; }
+    .result-emblem { font-size: 64px; animation: emblemPop .6s cubic-bezier(.2,.9,.3,1.4); }
+    @keyframes emblemPop { 0% { transform: scale(0) rotate(-30deg); opacity: 0; } 100% { transform: scale(1) rotate(0); opacity: 1; } }
+    .result-title { font-size: 30px; font-weight: 800; letter-spacing: 3px; margin: 10px 0 4px; }
+    .result-title.win {
+      background: linear-gradient(90deg,#ffd24a,#ff9a3c,#ffd24a); -webkit-background-clip: text;
+      background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .result-title.lose { color: #ff7a86; }
+    .result-sub { font-size: 13px; color: var(--muted); margin-bottom: 18px; line-height: 1.6; }
+    .result-stats {
+      display: flex; gap: 10px; width: 100%; max-width: 360px; margin-bottom: 22px;
+    }
+    .result-stats .rs-item { flex: 1; background: var(--card); border-radius: 12px; padding: 12px 8px; border: 1px solid var(--line); }
+    .result-stats .rs-k { font-size: 10px; color: var(--muted); }
+    .result-stats .rs-v { font-size: 22px; font-weight: 800; margin-top: 3px; color: var(--neon); }
+    .result-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 360px; }
+    .result-actions button {
+      width: 100%; padding: 14px; font-size: 15px; font-weight: 700; border-radius: 12px; cursor: pointer;
+    }
+    .result-actions .btn-primary {
+      border: 1px solid rgba(120,220,255,.5); color: #052033;
+      background: linear-gradient(100deg, #38e0ff, #4aa8ff);
+      box-shadow: 0 0 20px rgba(56,224,255,.4);
+    }
+    .result-actions .btn-ghost {
+      border: 1px solid var(--line); background: rgba(12,34,64,.6); color: var(--text);
+    }
+    /* 胜利彩纸 */
+    .confetti { position: fixed; top: -12px; width: 9px; height: 14px; z-index: 71; pointer-events: none; opacity: .95; }
+    @keyframes confettiFall {
+      0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg); opacity: .2; }
+    }
+
+    /* ===================== 护盾 / 格挡表现 ===================== */
+    /* 角色面板上的护盾徽标：进入格挡姿态时显示当前减伤% */
+    .shield-badge {
+      position: absolute; top: 8px; right: 8px; z-index: 9;
+      font-size: 10px; font-weight: 700; color: #bfe3ff;
+      background: rgba(79,140,255,.22); border: 1px solid rgba(111,208,255,.6);
+      border-radius: 999px; padding: 2px 7px; display: none;
+      box-shadow: 0 0 10px rgba(111,208,255,.45);
+    }
+    .shield-badge.show { display: inline-block; animation: shieldPop .3s ease; }
+    @keyframes shieldPop { 0% { transform: scale(.4); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+    /* ===================== 能量球 ===================== */
+    /* 每名角色一条 5 颗能量球：充能时亮起，消耗时熄灭并溅出粒子 */
+    .energy-bar {
+      display: flex; gap: 4px; justify-content: center; margin-top: 7px;
+      padding: 4px 2px; border-radius: 8px;
+      background: linear-gradient(180deg, rgba(8,18,38,.7), rgba(4,12,26,.7));
+      border: 1px solid rgba(80,180,255,.18);
+    }
+    .energy-orb {
+      position: relative; width: 14px; height: 14px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #1d2a48 0%, #0a1428 70%);
+      border: 1px solid rgba(80,140,200,.35);
+      transition: transform .25s, box-shadow .25s, background .25s;
+      flex: none;
+    }
+    /* 充能态：根据所属阵营换主色（正方青蓝、反方赤红） */
+    .fighter.a .energy-orb.on {
+      background: radial-gradient(circle at 30% 25%, #c4f5ff 0%, #4de6ff 35%, #1f8cff 75%, #0a2c5a 100%);
+      border-color: rgba(150,230,255,.85);
+      box-shadow:
+        0 0 8px rgba(56,224,255,.9),
+        0 0 14px rgba(56,224,255,.55),
+        inset 0 0 6px rgba(255,255,255,.6);
+      animation: orbBreath 1.6s ease-in-out infinite;
+    }
+    .fighter.b .energy-orb.on {
+      background: radial-gradient(circle at 30% 25%, #ffd6dc 0%, #ff9a8a 30%, #ff5d6c 70%, #5a0a15 100%);
+      border-color: rgba(255,180,180,.85);
+      box-shadow:
+        0 0 8px rgba(255,93,108,.9),
+        0 0 14px rgba(255,93,108,.55),
+        inset 0 0 6px rgba(255,255,255,.6);
+      animation: orbBreathB 1.6s ease-in-out infinite;
+    }
+    /* 给每颗球错开呼吸相位，节奏不同步更有生命感 */
+    .energy-orb:nth-child(1).on { animation-delay: 0s; }
+    .energy-orb:nth-child(2).on { animation-delay: .2s; }
+    .energy-orb:nth-child(3).on { animation-delay: .4s; }
+    .energy-orb:nth-child(4).on { animation-delay: .6s; }
+    .energy-orb:nth-child(5).on { animation-delay: .8s; }
+    @keyframes orbBreath {
+      0%,100% { box-shadow: 0 0 7px rgba(56,224,255,.7), 0 0 12px rgba(56,224,255,.4), inset 0 0 6px rgba(255,255,255,.55); }
+      50%     { box-shadow: 0 0 11px rgba(56,224,255,1), 0 0 20px rgba(56,224,255,.75), inset 0 0 8px rgba(255,255,255,.85); }
+    }
+    @keyframes orbBreathB {
+      0%,100% { box-shadow: 0 0 7px rgba(255,93,108,.7), 0 0 12px rgba(255,93,108,.4), inset 0 0 6px rgba(255,255,255,.55); }
+      50%     { box-shadow: 0 0 11px rgba(255,93,108,1), 0 0 20px rgba(255,93,108,.75), inset 0 0 8px rgba(255,255,255,.85); }
+    }
+    /* 刚刚被点亮：缩放弹一下 */
+    .energy-orb.gain { animation: orbGain .55s ease forwards; }
+    @keyframes orbGain {
+      0%   { transform: scale(.4); filter: brightness(2); }
+      45%  { transform: scale(1.4); filter: brightness(1.8); }
+      100% { transform: scale(1); filter: brightness(1); }
+    }
+    /* 刚刚被消耗：闪一下白光后熄灭 */
+    .energy-orb.spend {
+      animation: orbSpend .5s ease forwards;
+    }
+    @keyframes orbSpend {
+      0%   { transform: scale(1.3); filter: brightness(2.2) drop-shadow(0 0 8px #fff); }
+      60%  { transform: scale(.7); filter: brightness(.6); }
+      100% { transform: scale(1); filter: brightness(1); }
+    }
+    /* 能量条标签：右下角小角标显示数值 */
+    .energy-bar-label {
+      font-size: 9px; color: #6fa8d0; letter-spacing: 1px; margin-left: 4px;
+      align-self: center; font-weight: 700;
+    }
+    .fighter.a .energy-bar-label { color: #6fd0ff; }
+    .fighter.b .energy-bar-label { color: #ff9a8a; }
+
+    /* 进入格挡姿态时，角色面板亮起一圈蓝色护罩 */
+    .fighter.guard::before {
+      content: ""; position: absolute; inset: -2px; border-radius: 16px; z-index: 5;
+      border: 2px solid rgba(111,208,255,.85);
+      box-shadow: 0 0 18px 3px rgba(79,140,255,.55), inset 0 0 16px rgba(79,140,255,.35);
+      animation: guardUp .5s ease-out; pointer-events: none;
+    }
+    @keyframes guardUp {
+      0% { opacity: 0; transform: scale(1.08); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    /* 攻击被格挡时，目标身前一道护盾闪光 + "BLOCK" 飘字 */
+    .fighter.blocked::after {
+      content: ""; position: absolute; inset: 0; border-radius: 14px; z-index: 6;
+      background: radial-gradient(circle at center, rgba(120,200,255,.6), transparent 70%);
+      animation: flashFade .45s ease-out forwards; pointer-events: none;
+    }
+    .dmg.block { color: #6fd0ff; font-size: 18px; }
+    .dmg .block-tag { display: block; font-size: 11px; letter-spacing: 2px; color: #9ad4ff; }
+
+    /* ===================== 试炼之塔：手动选招操作栏 ===================== */
+    .skill-bar { display: none; margin: 4px 0 14px; }
+    .skill-bar.show { display: block; animation: appear .3s forwards; }
+    .skill-bar-tip { text-align: center; font-size: 12px; color: var(--neon); margin-bottom: 8px; text-shadow: 0 0 8px var(--neon-soft); }
+    .skill-bar-tip.enemy { color: #ff9a6c; text-shadow: none; }
+    .skill-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .skill-btn {
+      position: relative; text-align: left; border-radius: 12px; padding: 10px 12px;
+      border: 1px solid var(--line); background: rgba(14,36,66,.85); color: var(--text);
+      cursor: pointer; transition: transform .1s, border-color .15s, box-shadow .15s, opacity .15s;
+      -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    }
+    .skill-btn:active { transform: scale(.96); }
+    .skill-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .skill-btn.no-energy { opacity: .35; cursor: not-allowed; filter: grayscale(.4); }
+    .skill-btn.no-energy::before {
+      content: "能量不足"; position: absolute; top: 6px; right: 8px;
+      font-size: 9px; padding: 2px 6px; border-radius: 999px;
+      background: rgba(255,93,108,.18); color: #ff9aa3; border: 1px solid rgba(255,93,108,.4);
+      letter-spacing: 1px;
+    }
+    .skill-btn.atk { border-color: rgba(255,160,80,.5); }
+    .skill-btn.atk:not(:disabled):not(.no-energy):hover { box-shadow: 0 0 14px rgba(255,160,80,.35); }
+    .skill-btn.def { border-color: rgba(56,224,255,.6); background: linear-gradient(150deg, rgba(18,48,84,.9), rgba(12,34,64,.9)); }
+    .skill-btn.def:not(:disabled):not(.no-energy):hover { box-shadow: 0 0 14px rgba(56,224,255,.4); }
+    .skill-btn .sb-name { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .skill-btn .sb-meta { font-size: 10px; color: var(--muted); margin-top: 3px; }
+    .skill-btn .sb-tag {
+      font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 6px;
+    }
+    .skill-btn.atk .sb-tag { background: rgba(255,160,80,.2); color: #ffd24a; }
+    .skill-btn.def .sb-tag { background: rgba(56,224,255,.2); color: var(--neon); }
+    /* cost 角标：左上角，小球图标 */
+    .skill-btn .sb-cost {
+      position: absolute; top: 6px; left: 8px;
+      display: inline-flex; align-items: center; gap: 2px;
+      font-size: 9px; font-weight: 800; padding: 2px 7px; border-radius: 999px;
+      letter-spacing: 1px;
+      background: rgba(8,18,38,.9); border: 1px solid rgba(150,230,255,.55);
+      color: #c6f1ff;
+      box-shadow: 0 0 8px rgba(56,224,255,.35);
+    }
+    .skill-btn .sb-cost.free {
+      background: rgba(8,28,18,.9); border-color: rgba(120,255,180,.55);
+      color: #c6ffe1; box-shadow: 0 0 8px rgba(54,211,153,.35);
+    }
+    .skill-btn .sb-name { padding-left: 38px; min-height: 18px; }
+    .skill-btn .sb-meta { padding-left: 38px; }
+    /* 长按时高亮，告诉用户已经识别到长按 */
+    .skill-btn.pressing { box-shadow: 0 0 16px rgba(56,224,255,.55); transform: scale(.98); }
+
+    /* ===================== 开始界面（落地页） ===================== */
+    .splash {
+      position: fixed; inset: 0; z-index: 90; overflow: hidden;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 32px 24px calc(env(safe-area-inset-bottom) + 32px);
+      background:
+        radial-gradient(900px 520px at 50% 12%, rgba(40,150,255,.4), transparent 60%),
+        linear-gradient(160deg, #061f3c 0%, #04101f 75%);
+      text-align: center;
+      transition: opacity .5s ease, visibility .5s ease;
+    }
+    .splash.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+    /* 落地页几何霓虹装饰：两道斜向光带 */
+    .splash::before, .splash::after {
+      content: ""; position: absolute; pointer-events: none; opacity: .8;
+    }
+    .splash::before {
+      left: -10%; top: -20%; width: 50%; height: 140%;
+      background: linear-gradient(115deg, transparent 46%, rgba(56,224,255,.55) 49%, rgba(120,220,255,.9) 50%, rgba(56,224,255,.55) 51%, transparent 54%);
+      filter: blur(1px) drop-shadow(0 0 14px rgba(56,224,255,.8));
+      transform: skewX(-8deg); animation: beamSlide 6s ease-in-out infinite;
+    }
+    .splash::after {
+      right: -12%; top: -25%; width: 48%; height: 150%;
+      background: linear-gradient(70deg, transparent 46%, rgba(40,160,255,.5) 49%, rgba(120,220,255,.85) 50%, rgba(40,160,255,.5) 51%, transparent 54%);
+      filter: blur(1px) drop-shadow(0 0 14px rgba(56,224,255,.7));
+      transform: skewX(6deg); animation: beamSlide 7s ease-in-out infinite reverse;
+    }
+    @keyframes beamSlide {
+      0%,100% { transform: translateY(-4%) skewX(-8deg); }
+      50% { transform: translateY(4%) skewX(-8deg); }
+    }
+    .splash-inner { position: relative; z-index: 2; }
+    .splash-logo {
+      font-size: 14px; letter-spacing: 6px; color: #9fe6ff; margin-bottom: 10px;
+      text-shadow: 0 0 12px var(--neon-soft);
+    }
+    .splash-title {
+      font-size: 44px; font-weight: 900; letter-spacing: 4px; line-height: 1.1;
+      background: linear-gradient(180deg, #ffffff, #7fd8ff 60%, #2fb8ff);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 18px rgba(56,224,255,.6));
+    }
+    .splash-sub { font-size: 13px; color: #a9cdf0; margin-top: 14px; line-height: 1.7; max-width: 320px; }
+    .splash-enter {
+      margin-top: 34px; padding: 15px 54px; font-size: 18px; font-weight: 800; letter-spacing: 3px;
+      border-radius: 14px; cursor: pointer; color: #04243d;
+      border: 1px solid rgba(150,230,255,.7);
+      background: linear-gradient(100deg, #46e6ff, #5ca8ff);
+      box-shadow: 0 0 30px rgba(56,224,255,.6), inset 0 1px 0 rgba(255,255,255,.5);
+      animation: enterPulse 2.2s ease-in-out infinite;
+    }
+    @keyframes enterPulse {
+      0%,100% { box-shadow: 0 0 26px rgba(56,224,255,.5), inset 0 1px 0 rgba(255,255,255,.5); }
+      50% { box-shadow: 0 0 40px rgba(56,224,255,.85), inset 0 1px 0 rgba(255,255,255,.5); }
+    }
+    .splash-enter:active { transform: scale(.96); }
+    .splash-hint { margin-top: 16px; font-size: 11px; color: #6f9cc4; letter-spacing: 1px; }
+
+    /* ===================== 召唤训练场（加载时的小游戏） ===================== */
+    /* AI 生成角色 / 敌人通常要 10+ 秒，这段时间用一个靶向射击小游戏填上，
+     * 不再只是冷冰冰的"请稍候"。API 返回后切到结算页，让玩家手动进入战斗。 */
+    .mg-modal {
+      position: fixed; inset: 0; z-index: 80; background: linear-gradient(160deg, rgba(6,20,42,.96), rgba(2,8,20,.98));
+      display: none; flex-direction: column;
+      padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+      overflow: hidden;
+    }
+    .mg-modal.open { display: flex; animation: modalFade .22s ease; }
+    /* 与主背景一致的网格质感 */
+    .mg-modal::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        linear-gradient(rgba(80,180,255,.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(80,180,255,.07) 1px, transparent 1px);
+      background-size: 36px 36px;
+      mask-image: radial-gradient(circle at 50% 40%, #000 55%, transparent 100%);
+      -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 55%, transparent 100%);
+    }
+    .mg-head {
+      position: relative; z-index: 2;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 14px 18px 8px;
+    }
+    .mg-title {
+      font-size: 15px; font-weight: 800; letter-spacing: 3px;
+      background: linear-gradient(90deg,#5ce0ff,#9fe6ff,#5ce0ff);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 8px rgba(56,224,255,.55));
+    }
+    .mg-status {
+      font-size: 11px; color: #9fe6ff; letter-spacing: 1px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .mg-status .mg-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #ffd24a; box-shadow: 0 0 10px #ffd24a;
+      animation: mgDotBlink 1s ease-in-out infinite;
+    }
+    .mg-status.ready .mg-dot {
+      background: #36d399; box-shadow: 0 0 10px #36d399;
+      animation: none;
+    }
+    @keyframes mgDotBlink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+    .mg-scoreboard {
+      position: relative; z-index: 2;
+      display: flex; gap: 8px; padding: 0 18px 8px;
+    }
+    .mg-scoreboard .mg-stat {
+      flex: 1; text-align: center; padding: 8px 6px; border-radius: 10px;
+      background: rgba(10,28,52,.7); border: 1px solid rgba(80,180,255,.22);
+    }
+    .mg-scoreboard .mg-k { font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+    .mg-scoreboard .mg-v {
+      font-size: 18px; font-weight: 800; margin-top: 2px;
+      color: #eafcff; text-shadow: 0 0 10px rgba(56,224,255,.5);
+      font-variant-numeric: tabular-nums;
+    }
+    .mg-scoreboard .mg-stat.combo .mg-v { color: #ffd24a; text-shadow: 0 0 10px rgba(255,210,74,.5); }
+    .mg-scoreboard .mg-stat.high .mg-v { color: #ff9a6c; text-shadow: 0 0 10px rgba(255,154,108,.5); }
+    .mg-scoreboard .mg-stat.combo .mg-v.flash { animation: mgFlash .3s ease; }
+    @keyframes mgFlash { 0% { transform: scale(1.5); } 100% { transform: scale(1); } }
+
+    /* 游戏区域：靶子在这里飞 */
+    .mg-arena {
+      position: relative; flex: 1; margin: 0 12px 12px;
+      border-radius: 16px; overflow: hidden;
+      border: 1px solid rgba(80,180,255,.25);
+      background:
+        radial-gradient(600px 300px at 50% 0%, rgba(56,224,255,.16), transparent 70%),
+        linear-gradient(180deg, rgba(8,22,44,.6), rgba(4,12,26,.85));
+      box-shadow: inset 0 0 40px rgba(40,120,200,.18);
+      cursor: crosshair;
+      touch-action: manipulation;
+      user-select: none; -webkit-user-select: none;
+    }
+    .mg-arena .mg-hint {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      font-size: 13px; color: var(--muted); letter-spacing: 1px; text-align: center;
+      pointer-events: none; opacity: .55;
+    }
+    .mg-arena .mg-hint.hide { display: none; }
+
+    /* 靶子本身：emoji 字符 + 发光描边 */
+    .mg-target {
+      position: absolute; width: 56px; height: 56px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 36px; cursor: pointer;
+      border-radius: 50%;
+      filter: drop-shadow(0 0 6px rgba(255,255,255,.5));
+      will-change: transform;
+      transition: transform .08s;
+    }
+    .mg-target:active { transform: scale(.85); }
+    .mg-target.t-orb { color: #4de6ff; filter: drop-shadow(0 0 10px rgba(77,230,255,.85)); }
+    .mg-target.t-gem { color: #c4f5ff; filter: drop-shadow(0 0 12px rgba(180,230,255,.9)); font-size: 32px; }
+    .mg-target.t-star { color: #ffd24a; filter: drop-shadow(0 0 14px rgba(255,210,74,.95)); }
+    .mg-target.t-bomb { color: #ff5d6c; filter: drop-shadow(0 0 12px rgba(255,93,108,.85)); }
+
+    /* 击中爆裂效果 */
+    .mg-burst {
+      position: absolute; width: 70px; height: 70px;
+      pointer-events: none;
+      border-radius: 50%;
+      transform: translate(-50%,-50%);
+      animation: mgBurst .45s ease-out forwards;
+    }
+    .mg-burst.hit {
+      background: radial-gradient(circle, rgba(255,255,255,.95), rgba(120,220,255,.6) 40%, transparent 70%);
+    }
+    .mg-burst.bomb {
+      background: radial-gradient(circle, rgba(255,90,108,.95), rgba(255,154,108,.55) 50%, transparent 75%);
+    }
+    .mg-burst.star {
+      background: radial-gradient(circle, rgba(255,255,255,1), rgba(255,210,74,.7) 45%, transparent 75%);
+    }
+    @keyframes mgBurst {
+      0% { transform: translate(-50%,-50%) scale(.2); opacity: 1; }
+      100% { transform: translate(-50%,-50%) scale(2.6); opacity: 0; }
+    }
+
+    /* 飘动的得分文字 */
+    .mg-float {
+      position: absolute; pointer-events: none;
+      font-size: 18px; font-weight: 800; letter-spacing: 1px;
+      transform: translate(-50%,-50%);
+      animation: mgFloatUp .8s ease-out forwards;
+      text-shadow: 0 2px 6px rgba(0,0,0,.5);
+    }
+    .mg-float.plus { color: #6fee9d; }
+    .mg-float.bonus { color: #ffd24a; }
+    .mg-float.minus { color: #ff7a86; }
+    @keyframes mgFloatUp {
+      0% { transform: translate(-50%,-50%) scale(.6); opacity: 0; }
+      30% { transform: translate(-50%,-70%) scale(1.2); opacity: 1; }
+      100% { transform: translate(-50%,-130%) scale(1); opacity: 0; }
+    }
+
+    /* 底部提示条：当前 AI 状态 + 跳过按钮 */
+    .mg-foot {
+      position: relative; z-index: 2;
+      display: flex; gap: 8px; padding: 0 18px 14px;
+    }
+    .mg-foot .mg-tip {
+      flex: 1; padding: 10px 12px; font-size: 12px; color: var(--muted);
+      background: rgba(8,22,44,.6); border: 1px solid rgba(80,180,255,.18); border-radius: 10px;
+      line-height: 1.4;
+    }
+    .mg-foot .mg-skip {
+      padding: 10px 16px; font-size: 12px; font-weight: 700; letter-spacing: 1px;
+      border: 1px solid var(--line); background: rgba(12,34,64,.7); color: var(--text);
+      border-radius: 10px; cursor: pointer; white-space: nowrap;
+    }
+    .mg-foot .mg-skip:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* 结算覆盖层：API 返回后浮在游戏区域上方 */
+    .mg-result {
+      position: absolute; inset: 0; z-index: 5;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      padding: 24px; text-align: center;
+      background: radial-gradient(circle at 50% 35%, rgba(20,50,90,.92), rgba(2,10,22,.96) 70%);
+      backdrop-filter: blur(6px);
+      border-radius: 16px;
+    }
+    .mg-result.open { display: flex; animation: modalFade .25s ease; }
+    .mg-result .mr-emblem { font-size: 56px; animation: emblemPop .5s cubic-bezier(.2,.9,.3,1.4); }
+    .mg-result .mr-title {
+      font-size: 22px; font-weight: 800; letter-spacing: 3px; margin: 8px 0 4px;
+      background: linear-gradient(90deg,#5ce0ff,#9fe6ff,#5ce0ff);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .mg-result .mr-sub { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.6; }
+    .mg-result .mr-stats {
+      display: flex; gap: 8px; width: 100%; max-width: 320px; margin-bottom: 18px;
+    }
+    .mg-result .mr-stat {
+      flex: 1; padding: 10px 6px; border-radius: 10px;
+      background: rgba(8,22,44,.7); border: 1px solid rgba(80,180,255,.25);
+    }
+    .mg-result .mr-stat .k { font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+    .mg-result .mr-stat .v {
+      font-size: 22px; font-weight: 800; margin-top: 2px; color: #eafcff;
+      text-shadow: 0 0 10px rgba(56,224,255,.5); font-variant-numeric: tabular-nums;
+    }
+    .mg-result .mr-stat.new-record { border-color: rgba(255,210,74,.55); box-shadow: 0 0 16px rgba(255,210,74,.25); }
+    .mg-result .mr-stat.new-record .v { color: #ffd24a; text-shadow: 0 0 10px rgba(255,210,74,.6); }
+    .mg-result .mr-record-tag {
+      display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 999px;
+      background: rgba(255,210,74,.18); color: #ffd24a; border: 1px solid rgba(255,210,74,.45);
+      margin-bottom: 10px; letter-spacing: 2px;
+      animation: mgFlash .5s ease infinite alternate;
+    }
+    .mg-result .mr-enter {
+      width: 100%; max-width: 320px; padding: 14px; font-size: 16px; font-weight: 800; letter-spacing: 2px;
+      border: 1px solid rgba(120,220,255,.55); color: #052033;
+      background: linear-gradient(100deg,#38e0ff,#4aa8ff);
+      box-shadow: 0 0 22px rgba(56,224,255,.5);
+      border-radius: 12px; cursor: pointer;
+    }
+    .mg-result .mr-enter:active { transform: scale(.97); }
+    .mg-result .mr-error {
+      font-size: 13px; color: #ff9aa3; padding: 12px 16px; margin-bottom: 14px;
+      background: rgba(60,12,18,.5); border: 1px solid rgba(255,93,108,.4); border-radius: 10px;
+      max-width: 320px;
+    }
+
+    /* ===================== BGM 控制条（顶部右上角，紧邻音效按钮） ===================== */
+    .bgm-bar {
+      position: fixed; top: calc(env(safe-area-inset-top) + 8px); right: 104px;
+      z-index: 20; display: flex; align-items: center; gap: 4px;
+      padding: 0 6px 0 8px; height: 38px; border-radius: 999px;
+      background: rgba(10,30,55,.85); border: 1px solid var(--line);
+      box-shadow: 0 0 12px rgba(56,224,255,.22);
+    }
+    .bgm-bar .bgm-toggle {
+      background: none; border: none; color: var(--text);
+      font-size: 16px; cursor: pointer; padding: 0 4px;
+    }
+    .bgm-bar select {
+      background: transparent; border: none; color: var(--text);
+      font-size: 11px; padding: 4px 18px 4px 4px; outline: none;
+      max-width: 110px; appearance: none; -webkit-appearance: none;
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%239fe6ff' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 4px center;
+    }
+    .bgm-bar select option {
+      background: #04101f; color: var(--text);
+    }
+    @media (max-width: 380px) {
+      /* 小屏避让历史按钮：把 BGM 条挪到下一行 */
+      .bgm-bar {
+        top: calc(env(safe-area-inset-top) + 54px); right: 12px;
+      }
+    }
+
+    /* ===================== 排行榜入口按钮 + 弹窗 ===================== */
+    /* 放在左上角：右上角已经被音效/历史/BGM 三件占满，且 BGM 选条窄屏会下移
+     * 把它挤掉。左上角是独立空间，永远不会被遮。 */
+    .lb-toggle {
+      position: fixed; top: calc(env(safe-area-inset-top) + 8px); left: 12px;
+      z-index: 20; width: 38px; height: 38px; border-radius: 50%;
+      border: 1px solid rgba(255,210,74,.5);
+      background: linear-gradient(135deg, rgba(60,40,8,.85), rgba(10,30,55,.85));
+      color: var(--text);
+      font-size: 18px; cursor: pointer; line-height: 36px; text-align: center; padding: 0;
+      box-shadow: 0 0 14px rgba(255,210,74,.4);
+    }
+    .lb-modal {
+      position: fixed; inset: 0; z-index: 75; background: rgba(6,7,18,.92);
+      display: none; flex-direction: column; align-items: center;
+      padding: calc(env(safe-area-inset-top) + 18px) 16px calc(env(safe-area-inset-bottom) + 16px);
+      backdrop-filter: blur(4px);
+    }
+    .lb-modal.open { display: flex; animation: modalFade .22s ease; }
+    .lb-head {
+      width: 100%; max-width: 460px; display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 12px;
+    }
+    .lb-head .lh-title {
+      font-size: 20px; font-weight: 800; letter-spacing: 2px;
+      background: linear-gradient(90deg,#ffd24a,#ff9a3c,#ffd24a);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 8px rgba(255,210,74,.45));
+    }
+    .lb-head .lh-close {
+      font-size: 11px; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--line); background: rgba(12,34,64,.6); color: var(--text);
+    }
+    .lb-tabs {
+      display: flex; gap: 4px; width: 100%; max-width: 460px;
+      padding: 4px; border-radius: 10px; background: rgba(8,20,40,.7);
+      border: 1px solid var(--line); margin-bottom: 12px;
+    }
+    .lb-tabs button {
+      flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+      border: none; border-radius: 8px; background: transparent; color: var(--muted);
+      cursor: pointer; transition: background .15s, color .15s;
+    }
+    .lb-tabs button.active {
+      color: #04243d; background: linear-gradient(100deg,#ffd24a,#ff9a3c);
+      box-shadow: 0 0 14px rgba(255,210,74,.4);
+    }
+    /* 颁奖台：金/银/铜三柱 */
+    .lb-podium {
+      width: 100%; max-width: 460px; display: flex; align-items: flex-end;
+      justify-content: center; gap: 8px; margin-bottom: 16px; min-height: 180px;
+    }
+    .lb-podium .pcol {
+      flex: 1; max-width: 110px; display: flex; flex-direction: column;
+      align-items: center; cursor: pointer; user-select: none;
+    }
+    .lb-podium .pcol[disabled] { cursor: default; }
+    .lb-podium .pcol:not([disabled]):active { transform: scale(.97); }
+    .lb-podium .pmedal { font-size: 28px; margin-bottom: 2px; }
+    .lb-podium .pname {
+      font-size: 12px; font-weight: 700; color: #eafcff; text-align: center;
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .lb-podium .pnum {
+      font-size: 18px; font-weight: 800; color: #ffd24a; margin-bottom: 4px;
+      text-shadow: 0 0 10px rgba(255,210,74,.5);
+    }
+    .lb-podium .pbar {
+      width: 100%; border-radius: 8px 8px 0 0;
+      display: flex; align-items: flex-end; justify-content: center;
+      padding: 8px 4px; color: #052033; font-weight: 800; font-size: 14px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.4);
+    }
+    .lb-podium .pcol.gold .pbar    { background: linear-gradient(180deg,#ffe48a,#ffb733); height: 120px; }
+    .lb-podium .pcol.silver .pbar  { background: linear-gradient(180deg,#e8eef5,#a6b0bf); height: 92px; }
+    .lb-podium .pcol.bronze .pbar  { background: linear-gradient(180deg,#e0a06b,#a8682b); height: 72px; color: #fff; }
+    .lb-podium .pcol.gold[disabled] .pbar,
+    .lb-podium .pcol.silver[disabled] .pbar,
+    .lb-podium .pcol.bronze[disabled] .pbar { opacity: .35; }
+
+    /* 4 名及之后列表 */
+    .lb-list {
+      width: 100%; max-width: 460px; flex: 1; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .lb-empty { text-align: center; color: var(--muted); padding: 40px 16px; font-size: 13px; }
+    .lb-row {
+      display: grid; grid-template-columns: 32px 1fr auto; gap: 8px; align-items: center;
+      padding: 10px 12px; border-radius: 10px; cursor: pointer;
+      background: linear-gradient(150deg, rgba(28,40,80,.6), rgba(10,18,40,.85));
+      border: 1px solid rgba(80,140,200,.25);
+    }
+    .lb-row:active { transform: scale(.99); }
+    .lb-row .rk {
+      font-size: 13px; font-weight: 800; color: var(--neon); text-align: center;
+      text-shadow: 0 0 8px var(--neon-soft);
+    }
+    .lb-row .nm {
+      font-size: 13px; font-weight: 700; color: #eafcff;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .lb-row .nm .nm-sec { display: block; font-size: 10px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+    .lb-row .pr { font-size: 15px; font-weight: 800; color: #ffd24a; text-shadow: 0 0 8px rgba(255,210,74,.4); }
+
+    /* ===================== 故事对决模式 ===================== */
+    .story-title { text-align: center; margin-bottom: 14px; }
+    .story-title .stl-name {
+      font-size: 26px; font-weight: 800; letter-spacing: 3px;
+      background: linear-gradient(90deg,#ff9a6c,#ffd24a,#ff9a6c);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 10px rgba(255,154,108,.5));
+    }
+    .story-title .stl-sub { font-size: 11px; color: var(--muted); letter-spacing: 2px; margin-top: 4px; }
+
+    button#storyStart {
+      width: 100%; padding: 15px; font-size: 17px; font-weight: 700; letter-spacing: 1px;
+      border: 1px solid rgba(255,210,74,.55); border-radius: 12px; color: #042033;
+      background: linear-gradient(100deg, #ffd24a, #ff9a3c);
+      box-shadow: 0 0 22px rgba(255,210,74,.45), inset 0 1px 0 rgba(255,255,255,.4);
+      cursor: pointer;
+    }
+    button#storyStart:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* 故事卡片区域（双方简介 + 技能） */
+    .story-cards {
+      display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px;
+    }
+    .story-card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      padding: 12px; backdrop-filter: blur(6px);
+    }
+    .story-card.pro { border-left: 3px solid var(--accent-a); }
+    .story-card.ant { border-left: 3px solid var(--accent-b); }
+    .story-card .sc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+    .story-card .sc-name { font-size: 16px; font-weight: 800; color: #eafcff; }
+    .story-card .sc-source { font-size: 10px; color: var(--muted); }
+    .story-card .sc-summary { font-size: 12px; color: var(--text); line-height: 1.6; margin-bottom: 8px; opacity: .95; }
+    .story-card .sc-skills { display: flex; flex-wrap: wrap; gap: 4px; }
+    .story-card .sc-skill {
+      font-size: 11px; padding: 4px 8px; border-radius: 7px;
+      background: rgba(20,40,72,.85); border: 1px solid rgba(80,140,200,.3); color: var(--text);
+    }
+    .story-card.pro .sc-skill { border-color: rgba(79,140,255,.35); }
+    .story-card.ant .sc-skill { border-color: rgba(255,93,108,.35); }
+
+    /* 记分板 */
+    .story-scoreboard {
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      gap: 10px; align-items: center; padding: 12px;
+      border-radius: 12px; background: var(--card); border: 1px solid var(--line);
+      margin-bottom: 12px; backdrop-filter: blur(6px);
+    }
+    .story-scoreboard .sb-side { text-align: center; }
+    .story-scoreboard .sb-name {
+      font-size: 12px; font-weight: 700; color: #eafcff;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .story-scoreboard .sb-num {
+      font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 12px currentColor;
+    }
+    .story-scoreboard .sb-side.pro .sb-num { color: var(--accent-a); }
+    .story-scoreboard .sb-side.ant .sb-num { color: var(--accent-b); }
+    .story-scoreboard .sb-center { text-align: center; }
+    .story-scoreboard .sb-round { font-size: 10px; color: var(--muted); letter-spacing: 2px; }
+    .story-scoreboard .sb-rnum {
+      font-size: 20px; font-weight: 800; color: var(--neon);
+      text-shadow: 0 0 10px var(--neon-soft);
+    }
+    .story-scoreboard .sb-bestof { font-size: 9px; color: var(--muted); letter-spacing: 2px; }
+
+    /* 故事日志 */
+    .story-log {
+      display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;
+    }
+    .story-round-card {
+      background: linear-gradient(150deg, rgba(20,40,72,.7), rgba(8,18,40,.85));
+      border: 1px solid var(--line); border-radius: 14px;
+      padding: 12px 14px;
+      animation: appear .3s forwards; opacity: 0; transform: translateY(8px);
+    }
+    .story-round-card.pro { border-left: 3px solid var(--accent-a); }
+    .story-round-card.ant { border-left: 3px solid var(--accent-b); }
+    .story-round-card .srh {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 6px; gap: 8px;
+    }
+    .story-round-card .sr-title { font-size: 13px; font-weight: 800; color: #eafcff; letter-spacing: 1px; }
+    .story-round-card .sr-winner {
+      font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px;
+      opacity: 0; transition: opacity .4s; /* 打字结束后再 fade in */
+    }
+    .story-round-card .sr-winner.show { opacity: 1; }
+    .story-round-card.pro .sr-winner { background: rgba(79,140,255,.2); color: #9fe6ff; border: 1px solid rgba(79,140,255,.4); }
+    .story-round-card.ant .sr-winner { background: rgba(255,93,108,.18); color: #ff9aa3; border: 1px solid rgba(255,93,108,.4); }
+    .story-round-card .sr-narration {
+      font-size: 13px; line-height: 1.7; color: var(--text); white-space: pre-wrap;
+    }
+    .story-round-card .sr-highlight {
+      margin-top: 8px; font-size: 12px; color: #ffd24a;
+      padding-left: 10px; border-left: 2px solid rgba(255,210,74,.5);
+      opacity: 0; transition: opacity .4s;
+    }
+    .story-round-card .sr-highlight.show { opacity: 1; }
+
+    .story-victory {
+      text-align: center; padding: 18px; margin: 8px 0;
+      border-radius: 14px; letter-spacing: 1px;
+      background: linear-gradient(135deg, rgba(110,60,20,.6), rgba(50,20,10,.85));
+      border: 1px solid rgba(255,210,74,.45);
+      box-shadow: 0 0 24px rgba(255,210,74,.3);
+    }
+    .story-victory .sv-crown { font-size: 40px; }
+    .story-victory .sv-label { font-size: 11px; color: var(--muted); letter-spacing: 3px; margin-top: 2px; }
+    .story-victory .sv-name {
+      font-size: 22px; font-weight: 800; margin: 4px 0 8px;
+      background: linear-gradient(90deg,#ffd24a,#ff9a3c,#ffd24a);
+      -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .story-victory .sv-score { font-size: 13px; color: #eafcff; }
+
+    .story-actions {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;
+    }
+    .story-actions button { padding: 13px; font-size: 14px; font-weight: 700; border-radius: 11px; cursor: pointer; }
+    .story-actions .sa-primary {
+      border: 1px solid rgba(255,210,74,.55); color: #042033;
+      background: linear-gradient(100deg, #ffd24a, #ff9a3c);
+      box-shadow: 0 0 16px rgba(255,210,74,.35);
+    }
+    .story-actions .sa-ghost {
+      border: 1px solid var(--line); background: rgba(12,34,64,.7); color: var(--text);
+    }
+    .story-actions .sa-primary:active, .story-actions .sa-ghost:active { transform: scale(.97); }
+    .story-actions .sa-wide { grid-column: 1 / -1; }
+
+    /* ===================== 随机角色骰子（compete! 池移植，三种模式通用） ===================== */
+    .dice-roll {
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; margin: 4px 0 12px;
+    }
+    .dice-roll .dice-btn {
+      width: 48px; height: 48px; border-radius: 50%;
+      border: 1px solid rgba(120,220,255,.5);
+      background: linear-gradient(140deg, rgba(56,224,255,.18), rgba(79,140,255,.08));
+      color: var(--text); font-size: 24px; cursor: pointer;
+      box-shadow: 0 0 14px rgba(56,224,255,.35), inset 0 1px 0 rgba(255,255,255,.15);
+      transition: transform .1s, box-shadow .15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .dice-roll .dice-btn:active { transform: scale(.9) rotate(180deg); }
+    .dice-roll .dice-btn.rolling { animation: diceSpin .55s ease; }
+    @keyframes diceSpin {
+      0%   { transform: rotate(0)    scale(1); }
+      40%  { transform: rotate(720deg) scale(.9); }
+      100% { transform: rotate(720deg) scale(1); }
+    }
+    .dice-roll .dice-hint {
+      font-size: 11px; color: var(--muted); letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <!-- ========== 开始界面（落地页） ========== -->
+  <div class="splash" id="splash">
+    <div class="splash-inner">
+      <div class="splash-logo">A R E N A · 竞 技 场</div>
+      <div class="splash-title">名 字<br>对 战 塔</div>
+      <div class="splash-sub">
+        输入名字，AI 生成专属角色与技能。<br>
+        两种玩法：名字对战分胜负，或闯关试炼之塔层层强化登顶。
+      </div>
+      <button class="splash-enter" id="splashEnter">进 入</button>
+      <div class="splash-hint">点击进入 · 建议开启音效体验</div>
+    </div>
+  </div>
+
+  <button class="sound-toggle" id="soundToggle" title="开/关音效">🔊</button>
+  <button class="history-toggle" id="historyToggle" title="历史档案">
+    📜<span class="ht-badge" id="historyBadge">0</span>
+  </button>
+  <button class="lb-toggle" id="lbToggle" title="排行榜">🏆</button>
+  <div class="bgm-bar" id="bgmBar">
+    <button class="bgm-toggle" id="bgmToggle" title="播放/暂停背景音乐">🎵</button>
+    <select id="bgmSelect" title="背景音乐">
+      <option value="none">🔇 关闭</option>
+      <option value="blaze">🔥 霸气进行曲</option>
+      <option value="pulse">⚡ 电子脉冲</option>
+      <option value="epic">🎺 史诗鼓点</option>
+    </select>
+  </div>
+  <h1 id="appTitle">⚔️ 名字对战</h1>
+  <div class="subtitle" id="appSubtitle">输入两个名字，AI 联网生成角色并自动开战</div>
+
+  <!-- 模式切换 -->
+  <div class="mode-switch" id="modeSwitch">
+    <button type="button" data-mode="battle" class="active">⚔️ 名字对战</button>
+    <button type="button" data-mode="tower">🗼 试炼之塔</button>
+    <button type="button" data-mode="story">📖 故事对决</button>
+  </div>
+
+  <!-- ========== 对战模式 ========== -->
+  <div id="battleMode">
+    <div class="input-card" id="inputCard">
+      <div class="field a">
+        <label>正方名字</label>
+        <input id="sideA" type="text" placeholder="例如：孙悟空" maxlength="50" />
+      </div>
+      <div class="vs-mark">VS</div>
+      <div class="field b">
+        <label>反方名字</label>
+        <input id="sideB" type="text" placeholder="例如：奥特曼" maxlength="50" />
+      </div>
+      <div class="dice-roll">
+        <button class="dice-btn" id="diceBattle" type="button" title="随机抽两个角色">🎲</button>
+        <span class="dice-hint">不知道写谁？掷骰子从角色池里抽</span>
+      </div>
+      <button id="start">开始对战</button>
+    </div>
+  </div>
+
+  <!-- ========== 试炼之塔模式 ========== -->
+  <div id="towerMode" style="display:none">
+    <div class="tower-title">
+      <div class="tt-name">🗼 试炼之塔</div>
+      <div class="tt-sub">THE TRIAL TOWER · 三层试炼 · 层层强化</div>
+    </div>
+    <div class="input-card tower-input-card" id="towerInputCard">
+      <div class="field h">
+        <label>勇者之名</label>
+        <input id="heroName" type="text" placeholder="例如：孙悟空" maxlength="50" />
+      </div>
+      <div class="field h">
+        <label>挑战场地（敌人将围绕它生成）</label>
+        <input id="arenaName" type="text" placeholder="例如：熔岩深渊 / 霓虹赛博都市 / 武侠江湖" maxlength="50" />
+      </div>
+      <div class="dice-roll">
+        <button class="dice-btn" id="diceTower" type="button" title="随机抽勇者 + 场地">🎲</button>
+        <span class="dice-hint">不知道写谁？掷骰子抽勇者 + 场地</span>
+      </div>
+      <button id="towerStart">踏入试炼之塔</button>
+    </div>
+
+    <!-- 楼层进度 + 英雄状态 -->
+    <div class="tower-hud" id="towerHud">
+      <div class="floor-track" id="floorTrack"></div>
+      <div class="hero-stats" id="heroStats"></div>
+    </div>
+  </div>
+
+  <!-- ========== 故事对决模式（compete! 移植） ========== -->
+  <div id="storyMode" style="display:none">
+    <div class="story-title">
+      <div class="stl-name">📖 故事对决</div>
+      <div class="stl-sub">THE STORY DUEL · 三局两胜 · 解说员热血播报</div>
+    </div>
+    <div class="input-card" id="storyInputCard">
+      <div class="field a">
+        <label>正方角色</label>
+        <input id="storyA" type="text" placeholder="例如：齐木楠雄" maxlength="50" />
+      </div>
+      <div class="vs-mark">VS</div>
+      <div class="field b">
+        <label>反方角色</label>
+        <input id="storyB" type="text" placeholder="例如：皮卡丘" maxlength="50" />
+      </div>
+      <div class="dice-roll">
+        <button class="dice-btn" id="diceStory" type="button" title="随机抽两位角色">🎲</button>
+        <span class="dice-hint">不知道写谁？掷骰子抽两个虚拟角色</span>
+      </div>
+      <button id="storyStart">召唤角色，开始对决</button>
+    </div>
+
+    <!-- 召唤好后展示双方资料 + 比分 + 战报 -->
+    <div id="storyArena" style="display:none">
+      <div class="story-cards" id="storyCards"></div>
+      <div class="story-scoreboard" id="storyScoreboard">
+        <div class="sb-side pro"><div class="sb-name" id="storySbProName">正方</div><div class="sb-num" id="storySbProNum">0</div></div>
+        <div class="sb-center">
+          <div class="sb-round">回合</div>
+          <div class="sb-rnum" id="storySbRound">1</div>
+          <div class="sb-bestof">三局两胜</div>
+        </div>
+        <div class="sb-side ant"><div class="sb-name" id="storySbAntName">反方</div><div class="sb-num" id="storySbAntNum">0</div></div>
+      </div>
+      <div class="story-log" id="storyLog"></div>
+      <div class="story-actions" id="storyActions">
+        <button class="sa-primary sa-wide" id="storyNextRound">⚔️ 开打第 1 回合</button>
+        <!-- 结束时显示的两个操作（默认隐藏） -->
+        <button class="sa-ghost" id="storyToLb" hidden>🏆 看排行榜</button>
+        <button class="sa-primary" id="storyRestart" hidden>📖 再来一局</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 排行榜弹窗 ========== -->
+  <div class="lb-modal" id="lbModal">
+    <div class="lb-head">
+      <div class="lh-title">🏆 排行榜</div>
+      <button class="lh-close" id="lbClose">关闭</button>
+    </div>
+    <div class="lb-tabs" id="lbTabs">
+      <button data-lbtab="match_rate" class="active">大场胜率</button>
+      <button data-lbtab="round_rate">小场胜率</button>
+      <button data-lbtab="match_wins">大场胜数</button>
+      <button data-lbtab="round_wins">小场胜数</button>
+    </div>
+    <div class="lb-podium" id="lbPodium"></div>
+    <div class="lb-list" id="lbList"></div>
+  </div>
+
+  <div class="status" id="status"></div>
+
+  <!-- ========== 共享竞技场（两种模式复用） ========== -->
+  <div class="arena" id="arena">
+    <div class="intro" id="intro"></div>
+    <div class="fighters">
+      <div class="fighter a" id="fa">
+        <div class="fx" id="faFx"></div>
+        <div class="shield-badge" id="faShield">🛡️ <span id="faShieldVal"></span>%</div>
+        <div class="name" id="faName">—</div>
+        <div class="title" id="faTitle"></div>
+        <div class="hpbar"><div class="hpfill" id="faHp"></div></div>
+        <div class="hptext" id="faHpText"></div>
+        <div class="energy-bar" id="faEnergy"></div>
+        <div class="skills" id="faSkills"></div>
+      </div>
+      <div class="fighter b" id="fb">
+        <div class="fx" id="fbFx"></div>
+        <div class="shield-badge" id="fbShield">🛡️ <span id="fbShieldVal"></span>%</div>
+        <div class="name" id="fbName">—</div>
+        <div class="title" id="fbTitle"></div>
+        <div class="hpbar"><div class="hpfill" id="fbHp"></div></div>
+        <div class="hptext" id="fbHpText"></div>
+        <div class="energy-bar" id="fbEnergy"></div>
+        <div class="skills" id="fbSkills"></div>
+      </div>
+    </div>
+
+    <!-- 试炼之塔：手动选招操作栏 -->
+    <div class="skill-bar" id="skillBar">
+      <div class="skill-bar-tip" id="skillBarTip">轮到你出招，选择一个技能</div>
+      <div class="skill-actions" id="skillActions"></div>
+    </div>
+
+    <div class="winner" id="winner"></div>
+    <div class="log" id="log"></div>
+    <button class="replay" id="replay">再看一次</button>
+  </div>
+
+  <!-- 三选一强化弹窗 -->
+  <div class="upgrade-modal" id="upgradeModal">
+    <div class="upgrade-head">
+      <div class="uh-title">⚡ <span class="uh-spark">选择强化</span></div>
+      <div class="uh-sub" id="upgradeSub">通过第 1 层！三选一，让勇者更强</div>
+    </div>
+    <div class="upgrade-cards" id="upgradeCards"></div>
+  </div>
+
+  <!-- 结算弹窗 -->
+  <div class="result-modal" id="resultModal">
+    <div class="result-emblem" id="resultEmblem">🏆</div>
+    <div class="result-title" id="resultTitle">登顶成功</div>
+    <div class="result-sub" id="resultSub"></div>
+    <div class="result-stats" id="resultStats"></div>
+    <div class="result-actions">
+      <button class="btn-primary" id="resultRetry">再战一次</button>
+      <button class="btn-ghost" id="resultHome">返回首页</button>
+    </div>
+  </div>
+
+  <!-- 历史档案弹窗 -->
+  <div class="history-modal" id="historyModal">
+    <div class="history-head">
+      <div class="hh-title">📜 历史档案</div>
+      <div class="hh-actions">
+        <button class="hh-btn danger" id="historyClear">全部清空</button>
+        <button class="hh-btn" id="historyClose">关闭</button>
+      </div>
+    </div>
+    <div class="history-tabs">
+      <button data-htab="tower" class="active">🗼 试炼之塔</button>
+      <button data-htab="battle">⚔️ 名字对战</button>
+    </div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+
+  <!-- 出招播报横幅 -->
+  <div class="callout" id="callout">
+    <div class="callout-inner" id="calloutInner">
+      <div class="co-owner" id="coOwner"></div>
+      <div class="co-name" id="coName"></div>
+    </div>
+  </div>
+
+  <!-- ========== 召唤训练场（加载小游戏） ========== -->
+  <div class="mg-modal" id="mgModal">
+    <div class="mg-head">
+      <div class="mg-title">⚡ 召 唤 训 练 场</div>
+      <div class="mg-status" id="mgStatus"><span class="mg-dot"></span><span id="mgStatusText">AI 召唤中…</span></div>
+    </div>
+    <div class="mg-scoreboard">
+      <div class="mg-stat"><div class="mg-k">SCORE</div><div class="mg-v" id="mgScore">0</div></div>
+      <div class="mg-stat combo"><div class="mg-k">COMBO</div><div class="mg-v" id="mgCombo">0</div></div>
+      <div class="mg-stat high"><div class="mg-k">BEST</div><div class="mg-v" id="mgBest">0</div></div>
+    </div>
+    <div class="mg-arena" id="mgArena">
+      <div class="mg-hint" id="mgHint">点击飞过的靶子得分<br><span style="font-size:11px">⚡ +10 · 💎 +25 · ⭐ +50 · 💥 -20</span></div>
+      <!-- 结算覆盖层 -->
+      <div class="mg-result" id="mgResult">
+        <div class="mr-emblem" id="mrEmblem">✨</div>
+        <div class="mr-title" id="mrTitle">召唤完成</div>
+        <div class="mr-sub" id="mrSub">角色已就绪，可以开战了</div>
+        <div class="mr-record-tag" id="mrRecordTag" style="display:none">🏆 新纪录</div>
+        <div class="mr-stats" id="mrStats"></div>
+        <div class="mr-error" id="mrError" style="display:none"></div>
+        <button class="mr-enter" id="mrEnter">⚔️ 进入战斗</button>
+      </div>
+    </div>
+    <div class="mg-foot">
+      <div class="mg-tip" id="mgTip">AI 正在联网生成角色，先来训练手感~</div>
+      <button class="mg-skip" id="mgSkip">跳过</button>
+    </div>
+  </div>
+
+  <!-- 赛尔号风格技能详情卡 -->
+  <div class="skill-modal" id="skillModal">
+    <div class="skill-card" id="skillCard">
+      <div class="sc-head">
+        <button class="sc-close" id="scClose">✕</button>
+        <div class="sc-cost-badge" id="scCostBadge"><span>⚡</span><span id="scCostVal">0</span></div>
+        <div class="sc-owner" id="scOwner"></div>
+        <div class="sc-name" id="scName"></div>
+      </div>
+      <div class="sc-stats">
+        <div class="sc-stat pow"><div class="k">威力</div><div class="v" id="scPow"></div></div>
+        <div class="sc-stat acc"><div class="k">命中</div><div class="v" id="scAcc"></div></div>
+        <div class="sc-stat"><div class="k">类型</div><div class="v" id="scType" style="font-size:14px"></div></div>
+      </div>
+      <div class="sc-bars">
+        <div class="sc-baritem">
+          <div class="sc-barlabel"><span>威力</span><span id="scPowPct"></span></div>
+          <div class="sc-bartrack"><div class="sc-barfill pow" id="scPowBar"></div></div>
+        </div>
+        <div class="sc-baritem">
+          <div class="sc-barlabel"><span>命中</span><span id="scAccPct"></span></div>
+          <div class="sc-bartrack"><div class="sc-barfill acc" id="scAccBar"></div></div>
+        </div>
+      </div>
+      <div class="sc-desc" id="scDesc"></div>
+    </div>
+  </div>
+
+  <script>
+    // 后端接口同源托管，直接用相对路径
+    const API = "/api/battle";
+
+    // 能量系统常量（与后端 models.py 保持一致）
+    const INITIAL_ENERGY = 3;
+    const MAX_ENERGY = 5;
+    const ENERGY_PER_TURN = 1;
+
+    const $ = (id) => document.getElementById(id);
+    let lastResult = null;
+
+    /* ---- 运行 token：用于取消「正在播放的战斗 / 等待中的回合」 ----
+     * 每次开新战斗递增 runGen；切换模式 / 重置时也递增（cancelAll）。
+     * 异步循环里在每个 await 之后比对 myGen，不等于则提前退出，
+     * 避免上一场战斗的动画继续往隐藏的 DOM 上写数据。
+     */
+    let runGen = 0;
+    function startRun() { return ++runGen; }
+    function cancelAll() { runGen++; }
+    function isStale(myGen) { return runGen !== myGen; }
+
+    /* ---- 本地历史档案：localStorage 跨会话持久化 ----
+     * 每条记录两种类型：
+     *   - tower: 一次试炼之塔开局（含未强化的原始 hero + 三层敌人）
+     *            可点「重闯」从第 1 层重新开打，无需后端二次生成
+     *   - battle: 一场名字对战的双方角色 + 胜负，仅供查看
+     * 上限 HISTORY_MAX 条，旧的滚出。
+     */
+    const HISTORY_KEY = "naoz.history.v1";
+    const HISTORY_MAX = 30;
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch { return []; }
+    }
+    function saveHistory(arr) {
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(arr.slice(0, HISTORY_MAX)));
+      } catch (e) {
+        // 配额满 / 隐私模式禁用时静默失败：历史不是核心功能
+        console.warn("history save failed", e);
+      }
+    }
+    function pushHistory(item) {
+      const arr = loadHistory();
+      const id = "h-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6);
+      arr.unshift({ id, ts: Date.now(), ...item });
+      saveHistory(arr);
+      return id;
+    }
+    function updateHistory(id, patch) {
+      if (!id) return;
+      const arr = loadHistory();
+      const i = arr.findIndex((it) => it.id === id);
+      if (i < 0) return;
+      arr[i] = { ...arr[i], ...patch };
+      saveHistory(arr);
+    }
+    function removeHistory(id) {
+      const arr = loadHistory().filter((it) => it.id !== id);
+      saveHistory(arr);
+    }
+    function clearHistory() { saveHistory([]); }
+    function findHistory(id) { return loadHistory().find((it) => it.id === id); }
+
+    // 试炼结束时把当前 historyId 的状态打上 victory/defeat 终态 + 通关层数
+    function updateTowerHistory(status) {
+      if (!towerState.historyId) return;
+      updateHistory(towerState.historyId, {
+        status,
+        cleared: towerState.cleared,
+      });
+      refreshHistoryBadge();
+    }
+
+    /* ------------------------------------------------------------------ *
+     * 音效引擎：用 Web Audio API 实时合成，无需任何外部音频文件。
+     * 出招前摇(whoosh)、命中(hit/crit)、闪避(whiff)、击倒(ko) 各有不同音色。
+     * ------------------------------------------------------------------ */
+    const Sound = (() => {
+      let ctx = null;
+      let enabled = true;
+
+      function ac() {
+        if (!ctx) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return null;
+          ctx = new AC();
+        }
+        if (ctx.state === "suspended") ctx.resume();
+        return ctx;
+      }
+
+      // 生成一段白噪声 buffer（按需缓存）
+      let noiseBuf = null;
+      function noise(c) {
+        if (!noiseBuf) {
+          noiseBuf = c.createBuffer(1, c.sampleRate * 1, c.sampleRate);
+          const d = noiseBuf.getChannelData(0);
+          for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        }
+        const src = c.createBufferSource();
+        src.buffer = noiseBuf;
+        return src;
+      }
+
+      // 前摇破空声：噪声经带通滤波，频率快速上扫
+      function whoosh() {
+        const c = ac(); if (!c || !enabled) return;
+        const t = c.currentTime;
+        const src = noise(c);
+        const bp = c.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.setValueAtTime(420, t);
+        bp.frequency.exponentialRampToValueAtTime(1600, t + 0.18);
+        bp.Q.value = 1.2;
+        const g = c.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.22, t + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+        src.connect(bp).connect(g).connect(c.destination);
+        src.start(t); src.stop(t + 0.24);
+      }
+
+      // 命中音：低频"咚"+ 噪声爆裂；暴击更响更亮
+      function hit(crit) {
+        const c = ac(); if (!c || !enabled) return;
+        const t = c.currentTime;
+        // 低频冲击
+        const osc = c.createOscillator();
+        const og = c.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(crit ? 240 : 180, t);
+        osc.frequency.exponentialRampToValueAtTime(crit ? 60 : 50, t + 0.18);
+        og.gain.setValueAtTime(crit ? 0.6 : 0.4, t);
+        og.gain.exponentialRampToValueAtTime(0.0001, t + (crit ? 0.32 : 0.24));
+        osc.connect(og).connect(c.destination);
+        osc.start(t); osc.stop(t + 0.34);
+        // 高频爆裂
+        const src = noise(c);
+        const hp = c.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = crit ? 1400 : 900;
+        const ng = c.createGain();
+        ng.gain.setValueAtTime(crit ? 0.5 : 0.32, t);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + (crit ? 0.18 : 0.12));
+        src.connect(hp).connect(ng).connect(c.destination);
+        src.start(t); src.stop(t + 0.2);
+      }
+
+      // 闪避音：一声轻而快的破空
+      function whiff() {
+        const c = ac(); if (!c || !enabled) return;
+        const t = c.currentTime;
+        const src = noise(c);
+        const bp = c.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.setValueAtTime(2200, t);
+        bp.frequency.exponentialRampToValueAtTime(800, t + 0.14);
+        bp.Q.value = 2;
+        const g = c.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.14, t + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        src.connect(bp).connect(g).connect(c.destination);
+        src.start(t); src.stop(t + 0.18);
+      }
+
+      // 击倒音：下行的沉重轰鸣
+      function ko() {
+        const c = ac(); if (!c || !enabled) return;
+        const t = c.currentTime;
+        const osc = c.createOscillator();
+        const g = c.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(300, t);
+        osc.frequency.exponentialRampToValueAtTime(40, t + 0.6);
+        g.gain.setValueAtTime(0.6, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+        osc.connect(g).connect(c.destination);
+        osc.start(t); osc.stop(t + 0.72);
+      }
+
+      // 胜利音：上行三音
+      function fanfare() {
+        const c = ac(); if (!c || !enabled) return;
+        const base = c.currentTime;
+        [523, 659, 784, 1047].forEach((f, i) => {
+          const t = base + i * 0.12;
+          const osc = c.createOscillator();
+          const g = c.createGain();
+          osc.type = "square";
+          osc.frequency.value = f;
+          g.gain.setValueAtTime(0.0001, t);
+          g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+          osc.connect(g).connect(c.destination);
+          osc.start(t); osc.stop(t + 0.24);
+        });
+      }
+
+      // 格挡起手音：一声清亮上扬的护盾凝聚声
+      function guard() {
+        const c = ac(); if (!c || !enabled) return;
+        const t = c.currentTime;
+        const osc = c.createOscillator();
+        const g = c.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(420, t);
+        osc.frequency.exponentialRampToValueAtTime(880, t + 0.18);
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.22, t + 0.04);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+        osc.connect(g).connect(c.destination);
+        osc.start(t); osc.stop(t + 0.3);
+      }
+
+      // 格挡命中音：金属闷响"铛"，比命中更钝、更短
+      function block() {
+        const c = ac(); if (!c || !enabled) return;
+        const t = c.currentTime;
+        const osc = c.createOscillator();
+        const og = c.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(520, t);
+        osc.frequency.exponentialRampToValueAtTime(160, t + 0.14);
+        og.gain.setValueAtTime(0.4, t);
+        og.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+        osc.connect(og).connect(c.destination);
+        osc.start(t); osc.stop(t + 0.22);
+        // 一点金属噪声质感
+        const src = noise(c);
+        const bp = c.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.value = 2600;
+        bp.Q.value = 3;
+        const ng = c.createGain();
+        ng.gain.setValueAtTime(0.18, t);
+        ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+        src.connect(bp).connect(ng).connect(c.destination);
+        src.start(t); src.stop(t + 0.14);
+      }
+
+      return {
+        whoosh, hit, whiff, ko, fanfare, guard, block,
+        toggle() { enabled = !enabled; if (enabled) ac(); return enabled; },
+        get on() { return enabled; },
+        // 用户首次交互时解锁音频（移动端策略要求）
+        unlock() { ac(); },
+        // 暴露 ctx 给 BGM 控制器复用（避免开多个 AudioContext）
+        getCtx: ac,
+      };
+    })();
+
+    /* ------------------------------------------------------------------ *
+     * BGM 背景音乐（移植自 compete! 项目 audio.js）
+     * 用 Web Audio API 程序化合成 3 首循环曲目，零外部音频文件。
+     *   - blaze : C 大调霸气进行曲
+     *   - pulse : A 小调 synthwave 脉冲
+     *   - epic  : D 小调电影感史诗鼓
+     * 与 Sound 共享同一个 AudioContext，便于统一开关 + 自动暂停。
+     * ------------------------------------------------------------------ */
+    const BGM_TRACKS = (() => {
+      const parseDrum = (s) => s.split("").map((c) => c === "1");
+      return {
+        blaze: {
+          name: "🔥 霸气进行曲",
+          bpm: 124,
+          chords: [
+            [48, [60, 64, 67]], [45, [57, 60, 64]],
+            [41, [53, 57, 60]], [43, [55, 59, 62]],
+          ],
+          bassRhythm: [0, null, null, 7, 0, null, 7, null],
+          leadMelody: [
+            67, 0, 64, 67, 72, 0, 67, 0,
+            69, 0, 64, 69, 72, 0, 67, 0,
+            65, 0, 60, 65, 69, 0, 64, 0,
+            67, 0, 62, 67, 71, 0, 65, 0,
+          ],
+          leadType: "square",
+          drums: {
+            kick:  parseDrum("1000100010001000"),
+            snare: parseDrum("0000100000001000"),
+            hat:   parseDrum("1010101010101010"),
+          },
+        },
+        pulse: {
+          name: "⚡ 电子脉冲",
+          bpm: 132,
+          chords: [
+            [45, [57, 60, 64]], [41, [53, 57, 60]],
+            [48, [60, 64, 67]], [43, [55, 59, 62]],
+          ],
+          bassRhythm: [0, null, 0, null, 0, null, 0, null],
+          leadMelody: [
+            69, 0, 72, 0, 76, 72, 76, 0,
+            65, 0, 69, 0, 72, 69, 72, 0,
+            64, 0, 67, 0, 72, 67, 76, 0,
+            67, 0, 71, 0, 74, 71, 74, 0,
+          ],
+          leadType: "sawtooth",
+          drums: {
+            kick:  parseDrum("1000000010000000"),
+            snare: parseDrum("0000100000001000"),
+            hat:   parseDrum("1010101010101010"),
+          },
+        },
+        epic: {
+          name: "🎺 史诗鼓点",
+          bpm: 96,
+          chords: [
+            [38, [50, 53, 57]], [34, [46, 50, 53]],
+            [41, [53, 57, 60]], [36, [48, 52, 55]],
+          ],
+          bassRhythm: [0, null, null, null, 7, null, null, null],
+          leadMelody: [
+            69, 0, 74, 0, 69, 0, 72, 0,
+            65, 0, 74, 0, 72, 0, 65, 0,
+            72, 0, 65, 0, 69, 0, 72, 0,
+            67, 0, 72, 0, 76, 0, 67, 0,
+          ],
+          leadType: "triangle",
+          drums: {
+            kick:  parseDrum("1000000010000000"),
+            snare: parseDrum("0000100000001000"),
+            hat:   parseDrum("0010001000100010"),
+          },
+        },
+      };
+    })();
+
+    const BGM = (() => {
+      const midiToHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+      let trackId = "none";
+      let timer = null;
+      let step = 0;
+      let master = null, filter = null;
+      let lastNonNone = "blaze";  // 上次非 none 的曲目，用于「点击播放」恢复
+
+      function _ctx() { return Sound.getCtx(); }
+
+      function stop() {
+        if (timer) { clearInterval(timer); timer = null; }
+        for (const n of [filter, master]) {
+          if (!n) continue;
+          try { n.disconnect(); } catch {}
+        }
+        master = null; filter = null;
+        // 不重置 trackId — 让 UI 显示用户上次的选择
+      }
+
+      function start(id) {
+        stop();
+        if (!id || id === "none") { trackId = "none"; return; }
+        const track = BGM_TRACKS[id];
+        if (!track) return;
+        const ctx = _ctx();
+        if (!ctx) return;
+        trackId = id; lastNonNone = id; step = 0;
+
+        master = ctx.createGain();
+        master.gain.value = 0.22;     // BGM 不能盖过音效
+        filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.value = 3200;
+        filter.Q.value = 0.7;
+        master.connect(filter).connect(ctx.destination);
+
+        const stepDur = 60 / track.bpm / 4;
+        const patternLen = track.leadMelody.length;
+        const tick = () => {
+          const i = step % patternLen;
+          _playStep(track, i, stepDur);
+          step += 1;
+        };
+        tick();
+        timer = setInterval(tick, stepDur * 1000);
+      }
+
+      function _playStep(track, i, stepDur) {
+        if (i % 8 === 0) {
+          const ci = (i / 8) | 0;
+          const [, chordMidis] = track.chords[ci];
+          chordMidis.forEach((m) => _pad(m, stepDur * 8));
+        }
+        const ci = (i / 8) | 0;
+        const [bassRoot] = track.chords[ci];
+        const bassOff = track.bassRhythm[i % 8];
+        if (bassOff !== null && bassOff !== undefined) {
+          _bass(bassRoot + bassOff, stepDur * 1.6);
+        }
+        const leadMidi = track.leadMelody[i];
+        if (leadMidi) _lead(leadMidi, stepDur * 1.4, track.leadType);
+        if (track.drums.kick[i % 16])  _kick();
+        if (track.drums.snare[i % 16]) _snare();
+        if (track.drums.hat[i % 16])   _hat();
+      }
+
+      function _lead(midi, dur, type) {
+        const ctx = _ctx(); if (!ctx || !master) return;
+        const t0 = ctx.currentTime;
+        const o = ctx.createOscillator(); o.type = type; o.frequency.value = midiToHz(midi);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.025);
+        g.gain.exponentialRampToValueAtTime(0.06, t0 + 0.12);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g).connect(master); o.start(t0); o.stop(t0 + dur + 0.05);
+      }
+      function _bass(midi, dur) {
+        const ctx = _ctx(); if (!ctx || !master) return;
+        const t0 = ctx.currentTime;
+        const o = ctx.createOscillator(); o.type = "triangle"; o.frequency.value = midiToHz(midi);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.35, t0 + 0.015);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g).connect(master); o.start(t0); o.stop(t0 + dur + 0.04);
+      }
+      function _pad(midi, dur) {
+        const ctx = _ctx(); if (!ctx || !master) return;
+        const t0 = ctx.currentTime;
+        const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = midiToHz(midi);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.06, t0 + dur * 0.2);
+        g.gain.setValueAtTime(0.06, t0 + dur * 0.7);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        o.connect(g).connect(master); o.start(t0); o.stop(t0 + dur + 0.05);
+      }
+      function _kick() {
+        const ctx = _ctx(); if (!ctx || !master) return;
+        const t0 = ctx.currentTime;
+        const o = ctx.createOscillator(); o.type = "sine";
+        o.frequency.setValueAtTime(160, t0);
+        o.frequency.exponentialRampToValueAtTime(45, t0 + 0.12);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.7, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+        o.connect(g).connect(master); o.start(t0); o.stop(t0 + 0.18);
+      }
+      function _snare() {
+        const ctx = _ctx(); if (!ctx || !master) return;
+        const dur = 0.14;
+        const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 1500;
+        const g = ctx.createGain(); g.gain.value = 0.32;
+        s.connect(hp).connect(g).connect(master);
+        s.start(); s.stop(ctx.currentTime + dur);
+        const t0 = ctx.currentTime;
+        const tone = ctx.createOscillator(); tone.type = "triangle";
+        tone.frequency.setValueAtTime(220, t0);
+        tone.frequency.exponentialRampToValueAtTime(120, t0 + 0.08);
+        const tg = ctx.createGain();
+        tg.gain.setValueAtTime(0.18, t0);
+        tg.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+        tone.connect(tg).connect(master); tone.start(t0); tone.stop(t0 + 0.12);
+      }
+      function _hat() {
+        const ctx = _ctx(); if (!ctx || !master) return;
+        const dur = 0.045;
+        const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 7000;
+        const g = ctx.createGain();
+        const t0 = ctx.currentTime;
+        g.gain.setValueAtTime(0.18, t0);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        s.connect(hp).connect(g).connect(master);
+        s.start(); s.stop(t0 + dur);
+      }
+
+      return {
+        start, stop,
+        setTrack(id) {
+          // 正在播放 → 立即换曲；否则只记录选择
+          if (timer) start(id); else { trackId = id; if (id !== "none") lastNonNone = id; }
+        },
+        toggle() {
+          // 暂停 ↔ 恢复（恢复上次的非 none 曲目）
+          if (timer) { stop(); trackId = "none"; }
+          else { start(lastNonNone); }
+        },
+        get trackId() { return trackId; },
+        get isPlaying() { return timer !== null; },
+      };
+    })();
+
+    /* ------------------------------------------------------------------ *
+     * 召唤训练场（加载小游戏）：靶向射击，填补 AI 生成的 ~10s 等待
+     * 行为：showMiniGame() 打开 → 玩家自由射击得分 → API 返回时调用
+     *   finishMiniGame(data 或 error) 切到结算页 → 玩家点「进入战斗」时
+     *   resolve 返回承诺。整个流程把"等待"包装成一段可玩的训练。
+     * ------------------------------------------------------------------ */
+    const MiniGame = (() => {
+      const MG_BEST_KEY = "naoz.minigame.best.v1";
+      // 靶子类型表：权重越大越常出现；bomb 是干扰项扣分
+      // 时长是飞行总时长(ms)；越长越好点中。原版偏紧张，调宽给玩家从容反应的时间。
+      const TARGET_TYPES = [
+        { kind: "orb",  emoji: "⚡", score:  10, weight: 60, dur: [3600, 5400] },
+        { kind: "gem",  emoji: "💎", score:  25, weight: 25, dur: [2800, 4000] },
+        { kind: "star", emoji: "⭐", score:  50, weight:  8, dur: [2200, 3000] },
+        { kind: "bomb", emoji: "💥", score: -20, weight: 15, dur: [3400, 4800] },
+      ];
+
+      const state = {
+        active: false,
+        score: 0,
+        combo: 0,
+        spawnTimer: null,
+        // 等待 API 的承诺机制：showMiniGame 返回的 Promise 在玩家点「进入战斗」时 resolve
+        pendingResolve: null,
+        pendingReject: null,
+        apiResult: null,        // API 返回的数据（成功时）
+        apiError: null,         // API 抛的错（失败时）
+        apiReady: false,        // API 是否已返回
+      };
+
+      const $$ = (id) => document.getElementById(id);
+
+      function loadBest() {
+        try { return +localStorage.getItem(MG_BEST_KEY) || 0; }
+        catch { return 0; }
+      }
+      function saveBest(v) {
+        try { localStorage.setItem(MG_BEST_KEY, String(v)); }
+        catch {}
+      }
+
+      // 按权重随机抽一个靶子类型
+      function pickType() {
+        const total = TARGET_TYPES.reduce((s, t) => s + t.weight, 0);
+        let r = Math.random() * total;
+        for (const t of TARGET_TYPES) {
+          r -= t.weight;
+          if (r <= 0) return t;
+        }
+        return TARGET_TYPES[0];
+      }
+
+      // 生成一个飞行靶子：随机起点（左/右/下）+ 抛物线 / 直线轨迹
+      function spawnTarget() {
+        if (!state.active) return;
+        const arena = $$("mgArena");
+        if (!arena) return;
+        const rect = arena.getBoundingClientRect();
+        const w = rect.width, h = rect.height;
+        if (w < 50 || h < 50) return;          // 还没显示完毕，下次再说
+
+        const type = pickType();
+        const el = document.createElement("div");
+        el.className = "mg-target t-" + type.kind;
+        el.textContent = type.emoji;
+        el.dataset.kind = type.kind;
+        el.dataset.score = type.score;
+
+        // 起点 / 终点：从下方升起再落下（抛物线感）
+        const startX = 20 + Math.random() * (w - 80);
+        const endX   = 20 + Math.random() * (w - 80);
+        const arcH   = h * (0.55 + Math.random() * 0.3);  // 抛物高度
+        el.style.left = startX + "px";
+        el.style.top  = (h - 60) + "px";
+
+        const dur = type.dur[0] + Math.random() * (type.dur[1] - type.dur[0]);
+
+        // 用 Web Animations API 做抛物线：起点→顶点→终点
+        const anim = el.animate([
+          { transform: `translate(0, 0) rotate(0deg)` },
+          { transform: `translate(${(endX-startX)/2}px, -${arcH}px) rotate(180deg)`, offset: 0.5 },
+          { transform: `translate(${endX-startX}px, 80px) rotate(360deg)` },
+        ], { duration: dur, easing: "cubic-bezier(.3,.0,.5,1)" });
+
+        arena.appendChild(el);
+
+        const remove = () => {
+          if (el.parentNode) el.remove();
+        };
+        anim.onfinish = () => {
+          // 没被点：bomb 漏掉不扣分；其它漏掉断 combo
+          if (state.active && type.kind !== "bomb") {
+            state.combo = 0;
+            $$("mgCombo").textContent = "0";
+          }
+          remove();
+        };
+
+        // 点击命中：扣下 emoji 上的 score；同步爆裂动画 + 飘字 + 音效
+        const onHit = (e) => {
+          if (!state.active) return;
+          e.stopPropagation();
+          anim.cancel();
+          const x = parseFloat(el.style.left) + el.offsetWidth / 2 +
+                    (el.style.transform ? 0 : 0);   // 用当前位置爆开
+          const r = el.getBoundingClientRect();
+          const ar = arena.getBoundingClientRect();
+          const localX = r.left - ar.left + r.width / 2;
+          const localY = r.top  - ar.top  + r.height / 2;
+          remove();
+          $$("mgHint").classList.add("hide");
+          if (type.kind === "bomb") {
+            spawnBurst(arena, localX, localY, "bomb");
+            spawnFloat(arena, localX, localY, "-" + Math.abs(type.score), "minus");
+            state.combo = 0;
+            $$("mgCombo").textContent = "0";
+            state.score = Math.max(0, state.score + type.score);
+            Sound.hit(false);
+          } else {
+            state.combo += 1;
+            // 连击奖励：每达到 5 连击加 +5 倍率
+            const mult = 1 + Math.floor(state.combo / 5) * 0.5;
+            const add = Math.round(type.score * mult);
+            state.score += add;
+            spawnBurst(arena, localX, localY, type.kind === "star" ? "star" : "hit");
+            spawnFloat(arena, localX, localY, "+" + add,
+              type.kind === "star" ? "bonus" : "plus");
+            const comboEl = $$("mgCombo");
+            comboEl.textContent = String(state.combo);
+            comboEl.classList.remove("flash");
+            void comboEl.offsetWidth;
+            comboEl.classList.add("flash");
+            if (type.kind === "star") Sound.fanfare(); else Sound.hit(type.kind !== "orb");
+          }
+          $$("mgScore").textContent = String(state.score);
+        };
+        el.addEventListener("click", onHit);
+        el.addEventListener("touchstart", onHit, { passive: false });
+      }
+
+      // 击中爆裂圈
+      function spawnBurst(arena, x, y, cls) {
+        const b = document.createElement("div");
+        b.className = "mg-burst " + cls;
+        b.style.left = x + "px"; b.style.top = y + "px";
+        arena.appendChild(b);
+        setTimeout(() => b.remove(), 480);
+      }
+
+      // 飘动得分文字
+      function spawnFloat(arena, x, y, text, cls) {
+        const el = document.createElement("div");
+        el.className = "mg-float " + cls;
+        el.style.left = x + "px"; el.style.top = y + "px";
+        el.textContent = text;
+        arena.appendChild(el);
+        setTimeout(() => el.remove(), 820);
+      }
+
+      // 开始 / 停止生成循环
+      function startSpawnLoop() {
+        if (state.spawnTimer) clearInterval(state.spawnTimer);
+        // 节奏更悠闲：基础间隔 800-1400ms，会随时间略加快（封顶 500ms）
+        // 加上靶子飞行 3-5s，屏上同时 3-5 颗，玩起来不慌
+        let elapsed = 0;
+        const tick = () => {
+          if (!state.active) return;
+          spawnTarget();
+          elapsed += 1;
+          // 玩得越久节奏略快（封顶 500ms）；之前 280ms 太密集
+          const base = Math.max(500, 900 - elapsed * 8);
+          const jitter = 200 + Math.random() * 300;
+          state.spawnTimer = setTimeout(tick, base + jitter);
+        };
+        state.spawnTimer = setTimeout(tick, 400);
+      }
+      function stopSpawnLoop() {
+        if (state.spawnTimer) {
+          clearTimeout(state.spawnTimer);
+          state.spawnTimer = null;
+        }
+        // 清掉场上所有靶子（避免结算页背后还在飞）
+        const arena = $$("mgArena");
+        if (arena) arena.querySelectorAll(".mg-target").forEach((el) => el.remove());
+      }
+
+      // 打开训练场：返回承诺，玩家点「进入战斗」时 resolve 给 API 结果（或 reject）
+      function show(tip) {
+        state.score = 0;
+        state.combo = 0;
+        state.active = true;
+        state.apiReady = false;
+        state.apiResult = null;
+        state.apiError = null;
+        $$("mgScore").textContent = "0";
+        $$("mgCombo").textContent = "0";
+        $$("mgBest").textContent = String(loadBest());
+        $$("mgHint").classList.remove("hide");
+        $$("mgResult").classList.remove("open");
+        $$("mgStatus").classList.remove("ready");
+        $$("mgStatusText").textContent = "AI 召唤中…";
+        $$("mgTip").textContent = tip || "AI 正在联网生成角色，先来训练手感~";
+        $$("mgSkip").disabled = false;
+        $$("mgModal").classList.add("open");
+        startSpawnLoop();
+        Sound.unlock();
+        return new Promise((resolve, reject) => {
+          state.pendingResolve = resolve;
+          state.pendingReject = reject;
+        });
+      }
+
+      // API 成功返回：显示结算页，等玩家手动进入战斗
+      function finishOk(result, opts) {
+        state.apiReady = true;
+        state.apiResult = result;
+        state.active = false;
+        stopSpawnLoop();
+        const best = loadBest();
+        const isNewRecord = state.score > best;
+        if (isNewRecord) saveBest(state.score);
+        $$("mgBest").textContent = String(isNewRecord ? state.score : best);
+        $$("mgStatus").classList.add("ready");
+        $$("mgStatusText").textContent = "召唤完成！";
+        $$("mgSkip").disabled = true;
+
+        $$("mrEmblem").textContent = isNewRecord ? "🏆" : "✨";
+        $$("mrTitle").textContent = isNewRecord ? "新纪录达成" : "召唤完成";
+        $$("mrSub").textContent = (opts && opts.sub) || "角色已就绪，准备开战！";
+        $$("mrRecordTag").style.display = isNewRecord ? "inline-block" : "none";
+        $$("mrError").style.display = "none";
+        $$("mrStats").innerHTML =
+          `<div class="mr-stat${isNewRecord ? " new-record" : ""}"><div class="k">得分</div><div class="v">${state.score}</div></div>` +
+          `<div class="mr-stat"><div class="k">最高连击</div><div class="v">${state.combo}</div></div>` +
+          `<div class="mr-stat"><div class="k">历史最佳</div><div class="v">${isNewRecord ? state.score : best}</div></div>`;
+        const enterBtn = $$("mrEnter");
+        enterBtn.textContent = (opts && opts.enterLabel) || "⚔️ 进入战斗";
+        enterBtn.disabled = false;
+        $$("mgResult").classList.add("open");
+        Sound.fanfare();
+      }
+
+      // API 失败：也用结算页提示，但按钮变成「关闭」
+      function finishError(err) {
+        state.apiReady = true;
+        state.apiError = err;
+        state.active = false;
+        stopSpawnLoop();
+        $$("mgStatus").classList.add("ready");
+        $$("mgStatusText").textContent = "召唤失败";
+        $$("mgSkip").disabled = true;
+        $$("mrEmblem").textContent = "💢";
+        $$("mrTitle").textContent = "召唤失败";
+        $$("mrSub").textContent = "可以关闭后重试，或检查网络/密钥配置";
+        $$("mrRecordTag").style.display = "none";
+        $$("mrError").style.display = "block";
+        $$("mrError").textContent = String(err && err.message || err || "未知错误");
+        $$("mrStats").innerHTML =
+          `<div class="mr-stat"><div class="k">得分</div><div class="v">${state.score}</div></div>` +
+          `<div class="mr-stat"><div class="k">最高连击</div><div class="v">${state.combo}</div></div>`;
+        $$("mrEnter").textContent = "关闭";
+        $$("mgResult").classList.add("open");
+      }
+
+      // 关闭训练场（玩家点「进入战斗」或「关闭」或「跳过」）
+      function close() {
+        state.active = false;
+        stopSpawnLoop();
+        $$("mgModal").classList.remove("open");
+        $$("mgResult").classList.remove("open");
+        // 清残留爆裂/飘字
+        const arena = $$("mgArena");
+        if (arena) arena.querySelectorAll(".mg-burst,.mg-float").forEach((el) => el.remove());
+      }
+
+      // 玩家点「进入战斗」：close 弹窗，resolve 给等待的代码
+      function confirmEnter() {
+        const resolve = state.pendingResolve, reject = state.pendingReject;
+        const result = state.apiResult, err = state.apiError, ready = state.apiReady;
+        state.pendingResolve = null; state.pendingReject = null;
+        close();
+        if (!ready) {
+          // 玩家点了跳过：让外层等同于"取消"，外层应该自己处理 still-pending 的 API
+          if (resolve) resolve({ skipped: true });
+        } else if (err) {
+          if (reject) reject(err);
+        } else {
+          if (resolve) resolve({ result });
+        }
+      }
+
+      return { show, finishOk, finishError, close, confirmEnter,
+        get isOpen() { return state.active || $$("mgModal").classList.contains("open"); } };
+    })();
+
+    // 训练场按钮：进入战斗 / 跳过（脚本在 body 末尾，DOM 已就绪可直接绑）
+    $("mrEnter").addEventListener("click", () => MiniGame.confirmEnter());
+    $("mgSkip").addEventListener("click", () => {
+      // 跳过：直接关闭，不等结算；API 仍在飞，外层负责把它丢掉
+      MiniGame.confirmEnter();
+    });
+
+    /* ------------------------------------------------------------------ *
+     * 视觉特效：刀光、扬尘、冲击波、飘动伤害数字。挂在角色面板的 .fx 层上。
+     * ------------------------------------------------------------------ */
+    function clearFx(fxEl) { fxEl.innerHTML = ""; }
+
+    // 刀光：方向取决于攻击来自左还是右
+    function spawnSlash(fxEl, fromLeft, crit) {
+      const el = document.createElement("div");
+      el.className = "slash" + (crit ? " crit" : "");
+      el.style.setProperty("--ang", (fromLeft ? -32 : 32) + "deg");
+      fxEl.appendChild(el);
+      setTimeout(() => el.remove(), 320);
+    }
+
+    // 冲击波圆环
+    function spawnShock(fxEl, crit) {
+      const el = document.createElement("div");
+      el.className = "shock" + (crit ? " crit" : "");
+      fxEl.appendChild(el);
+      setTimeout(() => el.remove(), 460);
+    }
+
+    // 扬起的沙尘：散射若干颗粒
+    function spawnDust(fxEl, count) {
+      for (let i = 0; i < count; i++) {
+        const el = document.createElement("div");
+        el.className = "dust";
+        const dx = (Math.random() * 2 - 1) * 60;
+        const dy = -(20 + Math.random() * 46);
+        const dur = 0.45 + Math.random() * 0.4;
+        el.style.setProperty("--dx", dx.toFixed(0) + "px");
+        el.style.setProperty("--dy", dy.toFixed(0) + "px");
+        el.style.setProperty("--dur", dur.toFixed(2) + "s");
+        fxEl.appendChild(el);
+        setTimeout(() => el.remove(), dur * 1000 + 60);
+      }
+    }
+
+    // 飘动的伤害数字 / MISS
+    function spawnDamage(fxEl, dmg, crit, miss) {
+      const el = document.createElement("div");
+      el.className = "dmg" + (crit ? " crit" : "") + (miss ? " miss" : "");
+      el.innerHTML = miss
+        ? "MISS"
+        : (crit ? `<span class="crit-tag">暴击</span>` : "") + "-" + dmg;
+      fxEl.appendChild(el);
+      setTimeout(() => el.remove(), 950);
+    }
+
+    // 攻击被格挡：蓝色「格挡」飘字，显示被卸去的伤害
+    function spawnBlock(fxEl, blocked) {
+      const el = document.createElement("div");
+      el.className = "dmg block";
+      el.innerHTML = `<span class="block-tag">格挡</span>-${blocked}`;
+      fxEl.appendChild(el);
+      setTimeout(() => el.remove(), 950);
+    }
+
+    // 出招播报横幅：赛尔号式「XX 使用 技能名！」
+    function showCallout(owner, skillName, side) {
+      const inner = $("calloutInner");
+      const accent = side === "b" ? "#ff5d6c" : "#4f8cff";
+      const glow = side === "b" ? "rgba(255,93,108,.5)" : "rgba(79,140,255,.5)";
+      inner.style.setProperty("--co-accent", accent);
+      inner.style.setProperty("--co-glow", glow);
+      $("coOwner").textContent = owner;
+      $("coName").innerHTML = `<span class="co-use">使用</span>${skillName}！`;
+      inner.classList.remove("show");
+      void inner.offsetWidth;       // 重排以重放动画
+      inner.classList.add("show");
+    }
+
+    // 根据技能数值推断一个赛尔号式的属性类型标签
+    function skillType(sk) {
+      if (sk.kind === "defense" || sk.damage <= 0) return "防御";
+      if (sk.accuracy >= 95 && sk.damage <= 30) return "连击";
+      if (sk.damage >= 45) return "爆发";
+      if (sk.accuracy <= 70) return "豪赌";
+      if (sk.damage >= 35) return "强攻";
+      return "普攻";
+    }
+
+    function setSkills(el, char, side) {
+      el.innerHTML = "";
+      char.skills.forEach((sk) => {
+        const chip = document.createElement("span");
+        chip.className = "skill-chip" + (sk.kind === "defense" ? " def" : "");
+        const badge = sk.kind === "defense"
+          ? `<span class="chip-dmg def">🛡️${sk.block}%</span>`
+          : `<span class="chip-dmg">${sk.damage > 0 ? sk.damage : "—"}</span>`;
+        const costTag = sk.cost > 0
+          ? `<span class="chip-cost">⚡${sk.cost}</span>`
+          : `<span class="chip-cost free">·0</span>`;
+        chip.innerHTML =
+          `<span class="chip-name">${sk.name}</span>` + badge + costTag +
+          `<span class="chip-tip">长按</span>`;
+        // 长按打开技能详情卡（手机 touch + 电脑 mousedown）
+        bindLongPress(chip, () => openSkillCard(char, sk, side));
+        el.appendChild(chip);
+      });
+    }
+
+    /* ---- 长按检测：>=500ms 视为长按，触发回调；移动/松手中断 ----
+     * 同时屏蔽默认 click —— 用户短按啥也不做，避免误触；长按触发后吞掉后续 click。 */
+    function bindLongPress(el, onLongPress, ms = 500) {
+      let timer = null, fired = false, startX = 0, startY = 0;
+      const cleanup = () => {
+        if (timer) { clearTimeout(timer); timer = null; }
+        el.classList.remove("pressing");
+      };
+      const start = (x, y) => {
+        fired = false; startX = x; startY = y;
+        el.classList.add("pressing");
+        timer = setTimeout(() => {
+          fired = true;
+          el.classList.remove("pressing");
+          onLongPress();
+        }, ms);
+      };
+      const move = (x, y) => {
+        if (!timer) return;
+        // 移动超过 10px 视为滑动，取消长按
+        if (Math.abs(x - startX) > 10 || Math.abs(y - startY) > 10) cleanup();
+      };
+      // 触摸（手机/平板）
+      el.addEventListener("touchstart", (e) => {
+        const t = e.touches[0];
+        start(t.clientX, t.clientY);
+      }, { passive: true });
+      el.addEventListener("touchmove", (e) => {
+        const t = e.touches[0];
+        move(t.clientX, t.clientY);
+      }, { passive: true });
+      el.addEventListener("touchend", cleanup);
+      el.addEventListener("touchcancel", cleanup);
+      // 鼠标（电脑）
+      el.addEventListener("mousedown", (e) => start(e.clientX, e.clientY));
+      el.addEventListener("mousemove", (e) => move(e.clientX, e.clientY));
+      el.addEventListener("mouseup", cleanup);
+      el.addEventListener("mouseleave", cleanup);
+      // 长按触发后吞掉之后的 click（避免双触发）；纯点击不做任何事
+      el.addEventListener("click", (e) => {
+        if (fired) { e.preventDefault(); e.stopPropagation(); fired = false; }
+      });
+      // 屏蔽右键菜单（电脑长按可能弹出）
+      el.addEventListener("contextmenu", (e) => e.preventDefault());
+    }
+
+    /* ---- 能量球：双方各 5 颗；状态由 hero_energy / enemy_energy 同步 ---- */
+    function renderEnergy(side, count) {
+      const wrap = side === "a" ? $("faEnergy") : $("fbEnergy");
+      if (!wrap.children.length || wrap.children.length < MAX_ENERGY + 1) {
+        wrap.innerHTML = "";
+        for (let i = 0; i < MAX_ENERGY; i++) {
+          const orb = document.createElement("div");
+          orb.className = "energy-orb";
+          wrap.appendChild(orb);
+        }
+        const label = document.createElement("span");
+        label.className = "energy-bar-label";
+        wrap.appendChild(label);
+      }
+      const prevCount = +wrap.dataset.count || 0;
+      const orbs = wrap.querySelectorAll(".energy-orb");
+      orbs.forEach((orb, i) => {
+        const wasOn = orb.classList.contains("on");
+        const shouldOn = i < count;
+        orb.classList.remove("gain", "spend");
+        if (shouldOn && !wasOn) {
+          orb.classList.add("on", "gain");
+          setTimeout(() => orb.classList.remove("gain"), 600);
+        } else if (!shouldOn && wasOn) {
+          // 触发熄灭动效再清掉 on
+          orb.classList.add("spend");
+          setTimeout(() => { orb.classList.remove("spend", "on"); }, 480);
+        } else if (shouldOn) {
+          orb.classList.add("on");
+        }
+      });
+      wrap.dataset.count = count;
+      const label = wrap.querySelector(".energy-bar-label");
+      if (label) label.textContent = `${count}/${MAX_ENERGY}`;
+    }
+
+    function setEnergyBoth(aEnergy, bEnergy) {
+      renderEnergy("a", aEnergy);
+      renderEnergy("b", bEnergy);
+    }
+
+    // 打开赛尔号风格技能详情卡
+    function openSkillCard(char, sk, side) {
+      const card = $("skillCard");
+      const isDef = sk.kind === "defense";
+      card.classList.toggle("b", side === "b");
+      card.style.setProperty("--sc-accent", side === "b" ? "#ff5d6c" : "#4f8cff");
+      $("scOwner").textContent = char.name + (char.title ? ` · ${char.title}` : "");
+      $("scName").textContent = sk.name;
+      $("scType").textContent = skillType(sk);
+
+      // 能量 cost 徽章：0 显示"免费"
+      const cost = sk.cost || 0;
+      const badge = $("scCostBadge");
+      badge.classList.toggle("free", cost === 0);
+      $("scCostVal").textContent = cost === 0 ? "免费" : `×${cost}`;
+
+      if (isDef) {
+        // 防御技能：威力位展示格挡减伤%
+        $("scPow").textContent = sk.block + "%";
+        $("scAcc").textContent = "—";
+        $("scPowBar").style.width = sk.block + "%";
+        $("scPowPct").textContent = "格挡减伤 " + sk.block + "%";
+        $("scAccBar").style.width = "0%";
+        $("scAccPct").textContent = "防御不计命中";
+      } else {
+        $("scPow").textContent = sk.damage > 0 ? sk.damage : "—";
+        $("scAcc").textContent = sk.accuracy + "%";
+        const powPct = Math.round((sk.damage / 60) * 100); // schema 上限 60
+        $("scPowBar").style.width = powPct + "%";
+        $("scPowPct").textContent = sk.damage > 0 ? sk.damage + " / 60" : "无伤害";
+        $("scAccBar").style.width = sk.accuracy + "%";
+        $("scAccPct").textContent = sk.accuracy + "%";
+      }
+
+      $("scDesc").innerHTML =
+        `${sk.description}` +
+        `<div class="sc-quote">「${char.name}」的招牌技。${skillFlavorLine(sk)}</div>`;
+
+      $("skillModal").classList.add("open");
+      Sound.unlock();
+    }
+
+    // 给技能卡补一句网络感点评（与技能描述风格统一）
+    function skillFlavorLine(sk) {
+      const t = skillType(sk);
+      switch (t) {
+        case "爆发": return "蓄满全力一发入魂，挨上直接给你打飞。";
+        case "强攻": return "稳定的高输出主力，扛事儿就靠它。";
+        case "连击": return "出手快糊脸准，靠次数把你磨成毛毛雨。";
+        case "豪赌": return "威力顶天但不稳，赌就完了，赌赢直接秒。";
+        case "防御": return "摆姿态硬刚下一发，能量回个 0，谁顶谁亏。";
+        default: return "招式朴实，胜在能用。";
+      }
+    }
+
+    function closeSkillCard() { $("skillModal").classList.remove("open"); }
+
+    function initFighters(r) {
+      const a = r.character_a, b = r.character_b;
+      $("faName").textContent = a.name;
+      $("faTitle").textContent = a.title || "";
+      $("fbName").textContent = b.name;
+      $("fbTitle").textContent = b.title || "";
+      setSkills($("faSkills"), a, "a");
+      setSkills($("fbSkills"), b, "b");
+      // 初始满血
+      $("faHp").style.width = "100%";
+      $("fbHp").style.width = "100%";
+      $("faHpText").textContent = `${a.max_hp} / ${a.max_hp}`;
+      $("fbHpText").textContent = `${b.max_hp} / ${b.max_hp}`;
+      // 清残留特效：避免历史复用/切模式回来时上次的飘字/刀光还在
+      clearFx($("faFx")); clearFx($("fbFx"));
+      clearShields();
+      // 初始能量：双方各 INITIAL_ENERGY
+      $("faEnergy").dataset.count = 0; $("fbEnergy").dataset.count = 0; // 让 renderEnergy 走"刚点亮"动画
+      setEnergyBoth(INITIAL_ENERGY, INITIAL_ENERGY);
+    }
+
+    function sleep(ms) { return new Promise((res) => setTimeout(res, ms)); }
+
+    // 设置/清除某一方的护盾徽标（格挡姿态）
+    function setShield(side, blockPct) {
+      const badge = side === "a" ? $("faShield") : $("fbShield");
+      const valEl = side === "a" ? $("faShieldVal") : $("fbShieldVal");
+      if (blockPct > 0) {
+        valEl.textContent = blockPct;
+        badge.classList.add("show");
+      } else {
+        badge.classList.remove("show");
+      }
+    }
+    function clearShields() { setShield("a", 0); setShield("b", 0); }
+
+    /* 播放单个回合事件（攻击 / 防御）。两种模式共用。
+     * ctx: { nameA, maxHp:{name->hp} }，用于判断站位与伤害分档。
+     * myGen 用于取消：每个 await 后检查 isStale(myGen) 真即提前退出
+     *   （switchMode 或 reset 会通过 cancelAll() 让所有进行中的动画停下）。
+     * 返回 Promise，动画播放完才 resolve。
+     */
+    async function playEvent(ev, ctx, myGen) {
+      const actorIsA = ev.actor === ctx.nameA;
+      const actorSide = actorIsA ? "a" : "b";
+
+      // ---- 防御行动：进入格挡姿态，亮护罩 + 显示护盾徽标 ----
+      if (ev.kind === "defense") {
+        const el = actorIsA ? $("fa") : $("fb");
+        showCallout(ev.actor, ev.skill, actorSide);
+        el.classList.remove("guard");
+        void el.offsetWidth;
+        el.classList.add("guard");
+        Sound.guard();
+        // 护盾减伤% = 该防御技能的 block（从解说里拿不到，调用方已写入 ev.block）
+        setShield(actorSide, ev.block || 0);
+        if (ev.actor_energy_after >= 0) renderEnergy(actorSide, ev.actor_energy_after);
+        appendLog(ev, actorIsA);
+        await sleep(900);
+        if (isStale(myGen)) return;
+        return;
+      }
+
+      // ---- 攻击行动 ----
+      const isTargetA = ev.target === ctx.nameA;
+      const fromLeft = actorIsA;
+      const attackerEl = actorIsA ? $("fa") : $("fb");
+      const targetEl = isTargetA ? $("fa") : $("fb");
+      const targetFx = isTargetA ? $("faFx") : $("fbFx");
+      const fillEl = isTargetA ? $("faHp") : $("fbHp");
+      const textEl = isTargetA ? $("faHpText") : $("fbHpText");
+
+      const maxHpTarget = ctx.maxHp[ev.target];
+      const ratio = ev.damage / maxHpTarget;
+      const crit = ev.hit && ratio >= 0.2;
+      const heavy = ev.hit && ratio >= 0.12;
+      const wasBlocked = ev.blocked > 0;
+
+      // 阶段一：前摇
+      showCallout(ev.actor, ev.skill, actorIsA ? "a" : "b");
+      attackerEl.classList.remove("lunge-left", "lunge-right");
+      void attackerEl.offsetWidth;
+      attackerEl.classList.add(fromLeft ? "lunge-right" : "lunge-left");
+      Sound.whoosh();
+      await sleep(360);
+      if (isStale(myGen)) return;
+
+      // 阶段二：命中 / 闪避
+      if (ev.hit && (ev.damage > 0 || wasBlocked)) {
+        spawnSlash(targetFx, fromLeft, crit);
+        spawnShock(targetFx, crit);
+        spawnDust(targetFx, crit ? 12 : heavy ? 8 : 5);
+
+        if (wasBlocked) {
+          // 被格挡：护盾闪光 + 蓝色 BLOCK 飘字（若仍有溢出伤害，再叠一个伤害数字）
+          targetEl.classList.remove("blocked");
+          void targetEl.offsetWidth;
+          targetEl.classList.add("blocked");
+          spawnBlock(targetFx, ev.blocked);
+          if (ev.damage > 0) spawnDamage(targetFx, ev.damage, false, false);
+          setShield(isTargetA ? "a" : "b", 0); // 格挡用掉，撤下徽标
+          Sound.block();
+        } else {
+          spawnDamage(targetFx, ev.damage, crit, false);
+          const shakeCls = crit ? "hit-hard" : heavy ? "hit" : "hit-light";
+          targetEl.classList.remove("hit-light", "hit", "hit-hard");
+          void targetEl.offsetWidth;
+          targetEl.classList.add(shakeCls);
+          targetEl.classList.remove("flash", "flash-crit");
+          void targetEl.offsetWidth;
+          targetEl.classList.add(crit ? "flash-crit" : "flash");
+          if (crit) {
+            document.body.classList.remove("quake");
+            void document.body.offsetWidth;
+            document.body.classList.add("quake");
+          }
+          Sound.hit(crit);
+        }
+      } else {
+        // 未命中：闪身躲开
+        targetEl.classList.remove("dodge-left", "dodge-right");
+        void targetEl.offsetWidth;
+        targetEl.classList.add(isTargetA ? "dodge-left" : "dodge-right");
+        spawnDamage(targetFx, 0, false, true);
+        Sound.whiff();
+      }
+
+      await sleep(120);
+      if (isStale(myGen)) return;
+
+      // 更新目标血量
+      const hpAfter = ev.target_hp_after;
+      const pct = Math.max(0, (hpAfter / maxHpTarget) * 100);
+      fillEl.style.width = pct + "%";
+      textEl.textContent = `${hpAfter} / ${maxHpTarget}`;
+
+      // 同步行动者能量球（有 actor_energy_after 才更新；防御已在上方处理）
+      if (ev.actor_energy_after >= 0) renderEnergy(actorSide, ev.actor_energy_after);
+
+      if (hpAfter <= 0) {
+        Sound.ko();
+        document.body.classList.remove("quake");
+        void document.body.offsetWidth;
+        document.body.classList.add("quake");
+      }
+
+      appendLog(ev, actorIsA);
+      await sleep(560);
+      if (isStale(myGen)) return;
+    }
+
+    // 往战斗日志追加一行：最新一条插在最上面，不自动滚动
+    function appendLog(ev, actorIsA) {
+      const item = document.createElement("div");
+      item.className = "log-item " + (actorIsA ? "a" : "b");
+      item.innerHTML = `<span class="turn-no">第${ev.turn}回合</span>${ev.narration}`;
+      $("log").prepend(item);
+    }
+
+    async function playBattle(r, opts = {}) {
+      const myGen = startRun();
+      const a = r.character_a, b = r.character_b;
+      const ctx = { nameA: a.name, maxHp: { [a.name]: a.max_hp, [b.name]: b.max_hp } };
+      $("log").innerHTML = "";
+      $("winner").style.display = "none";
+      $("replay").style.display = "none";
+      clearFx($("faFx")); clearFx($("fbFx"));
+      clearShields();
+
+      $("intro").textContent = r.intro || "";
+
+      for (const ev of r.events) {
+        if (isStale(myGen)) return null;
+        await playEvent(ev, ctx, myGen);
+      }
+      if (isStale(myGen)) return null;
+
+      // 显示胜负
+      if (opts.suppressWinner) {
+        return r.winner;
+      }
+      const w = $("winner");
+      w.textContent = r.winner === "平局" ? "🤝 平局！" : `🏆 胜者：${r.winner}`;
+      w.style.display = "block";
+      w.scrollIntoView({ behavior: "smooth", block: "center" });
+      $("replay").style.display = "block";
+      if (r.winner !== "平局") Sound.fanfare();
+      // 名字对战完成后入历史档案 + 入排行榜库
+      pushHistory({
+        type: "battle",
+        side_a: a.name,
+        side_b: b.name,
+        winner: r.winner,
+        character_a: a,
+        character_b: b,
+      });
+      refreshHistoryBadge();
+      persistBattleMatch(r);    // 入排行榜（异步，不阻塞）
+      return r.winner;
+    }
+
+    async function startBattle() {
+      const sideA = $("sideA").value.trim();
+      const sideB = $("sideB").value.trim();
+      if (!sideA || !sideB) {
+        $("status").textContent = "请填写双方名字";
+        return;
+      }
+      $("start").disabled = true;
+      $("status").textContent = "正在召唤双方角色…";
+
+      // 启动召唤训练场（玩家可在等待期间打靶），并发起 API 请求
+      const gamePromise = MiniGame.show(`正在为「${sideA}」和「${sideB}」生成角色…`);
+      const apiPromise = (async () => {
+        const resp = await fetch(API, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ side_a: sideA, side_b: sideB }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `服务返回 ${resp.status}`);
+        }
+        return resp.json();
+      })();
+
+      // API 完成后，把结果交给训练场结算页（不直接关闭）
+      apiPromise.then(
+        (r) => MiniGame.finishOk(r, { sub: `「${r.character_a.name}」 vs 「${r.character_b.name}」 已就绪！` }),
+        (e) => MiniGame.finishError(e),
+      );
+
+      try {
+        const outcome = await gamePromise;     // 玩家点「进入战斗」或「跳过」后才推进
+        // 跳过：API 可能还在飞，再等一下
+        const r = outcome.skipped ? await apiPromise : outcome.result;
+        lastResult = r;
+
+        const sourceTip = r.source === "claude" ? "联网生成" : "模拟模式(未配置密钥)";
+        $("status").innerHTML = `角色已就绪 <span class="badge">${sourceTip}</span>`;
+        $("arena").style.display = "block";
+        initFighters(r);
+        await sleep(400);
+        await playBattle(r);
+      } catch (e) {
+        $("status").textContent = "出错了：" + e.message;
+      } finally {
+        $("start").disabled = false;
+      }
+    }
+
+    $("start").addEventListener("click", () => { Sound.unlock(); startBattle(); });
+    $("replay").addEventListener("click", () => { Sound.unlock(); if (lastResult) playBattle(lastResult); });
+    // 回车快捷开战
+    $("sideB").addEventListener("keydown", (e) => { if (e.key === "Enter") { Sound.unlock(); startBattle(); } });
+
+    /* ================================================================== *
+     * 试炼之塔（打怪升级模式）— 手动选招的回合制互动战斗
+     * 流程：输入勇者之名 + 挑战场地 → 生成英雄 + 三层主题敌人 →
+     *       逐层手动选招(点技能→后端结算我方+敌方→播放) → 通关三选一强化 → 结算
+     * 后端无状态：英雄、敌人、战斗状态都保存在前端 towerState，每次请求带上。
+     * ------------------------------------------------------------------ */
+    const TOWER_FLOORS = 3;
+    const towerState = {
+      hero: null,        // 当前英雄(含强化)
+      heroName: "",      // 玩家输入的名字
+      arena: "",         // 挑战场地
+      enemies: [],       // 三层敌人
+      level: 1,          // 当前层数(1~3)
+      cleared: 0,        // 已通关层数
+      enemy: null,       // 当前层敌人
+      state: null,       // 当前战斗状态 {hero_hp, enemy_hp, hero_block, enemy_block, hero_energy, enemy_energy, turn}
+      busy: false,       // 是否正在结算一回合，避免重复点击
+      historyId: null,   // 当前试炼在 localStorage 历史里的记录 id（结算时更新 status）
+      originHero: null,  // 开局时未强化的英雄拷贝（用于"重闯"功能）
+    };
+
+    // 渲染楼层进度条
+    function renderFloorTrack() {
+      const track = $("floorTrack");
+      track.innerHTML = "";
+      for (let i = 1; i <= TOWER_FLOORS; i++) {
+        const dot = document.createElement("div");
+        dot.className = "floor-dot";
+        if (i <= towerState.cleared) dot.classList.add("cleared");
+        else if (i === towerState.level) dot.classList.add("current");
+        dot.textContent = i <= towerState.cleared ? "✓" : i;
+        track.appendChild(dot);
+        if (i < TOWER_FLOORS) {
+          const link = document.createElement("div");
+          link.className = "floor-link" + (i <= towerState.cleared ? " cleared" : "");
+          track.appendChild(link);
+        }
+      }
+    }
+
+    // 渲染英雄状态条（可选高亮某些属性的提升）
+    function renderHeroStats(upDelta = null) {
+      const h = towerState.hero;
+      if (!h) return;
+      const up = (key) => (upDelta && upDelta[key] ? `<span class="hs-up">+${upDelta[key]}</span>` : "");
+      $("heroStats").innerHTML =
+        `<div class="hs-item hp"><div class="hs-k">❤️ 生命</div><div class="hs-v">${h.max_hp}${up("max_hp")}</div></div>` +
+        `<div class="hs-item atk"><div class="hs-k">⚔️ 攻击</div><div class="hs-v">${h.attack}${up("attack")}</div></div>` +
+        `<div class="hs-item def"><div class="hs-k">🛡️ 防御</div><div class="hs-v">${h.defense}${up("defense")}</div></div>` +
+        `<div class="hs-item"><div class="hs-k">📜 技能</div><div class="hs-v">${h.skills.length}</div></div>`;
+    }
+
+    // 开始试炼：生成英雄 + 三层敌人
+    async function towerStart() {
+      const name = $("heroName").value.trim();
+      const arena = $("arenaName").value.trim();
+      if (!name) { $("status").textContent = "请填写勇者之名"; return; }
+      $("towerStart").disabled = true;
+      $("status").textContent = "正在召唤勇者、布置试炼场地…";
+
+      // 启动召唤训练场（玩家可在等待期间打靶），并发起 API 请求
+      const gamePromise = MiniGame.show(
+        `正在召唤勇者「${name}」${arena ? `，布置「${arena}」试炼场地…` : "…"}`,
+      );
+      const apiPromise = (async () => {
+        const resp = await fetch("/api/adventure/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, arena }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `服务返回 ${resp.status}`);
+        }
+        return resp.json();
+      })();
+
+      apiPromise.then(
+        (d) => MiniGame.finishOk(d, {
+          sub: `勇者已就位，三层试炼布置完成${d.arena ? `（${d.arena}）` : ""}！`,
+          enterLabel: "🗼 进入试炼之塔",
+        }),
+        (e) => MiniGame.finishError(e),
+      );
+
+      try {
+        const outcome = await gamePromise;
+        const data = outcome.skipped ? await apiPromise : outcome.result;
+
+        towerState.hero = data.hero;
+        towerState.heroName = data.hero.name;
+        towerState.arena = data.arena || arena;
+        towerState.enemies = data.enemies;
+        towerState.level = 1;
+        towerState.cleared = 0;
+        // 保留一份未强化的原始英雄拷贝，"重闯"功能用
+        towerState.originHero = JSON.parse(JSON.stringify(data.hero));
+
+        const sourceTip = data.source === "claude" ? "联网生成" : "模拟模式";
+        $("status").innerHTML = `${data.intro || ""} <span class="badge">${sourceTip}</span>`;
+
+        // 入历史：记录这次开局的"原始英雄 + 三层敌人 + 场地"
+        towerState.historyId = pushHistory({
+          type: "tower",
+          arena: towerState.arena,
+          hero: towerState.originHero,
+          enemies: towerState.enemies,
+          status: "ongoing",
+          cleared: 0,
+        });
+        refreshHistoryBadge();
+
+        $("towerInputCard").style.display = "none";
+        $("towerHud").style.display = "block";
+        $("arena").style.display = "block";
+        renderFloorTrack();
+        renderHeroStats();
+        await sleep(500);
+        enterLevel();
+      } catch (e) {
+        $("status").textContent = "出错了：" + e.message;
+      } finally {
+        $("towerStart").disabled = false;
+      }
+    }
+
+    /* 从历史复用：用某条 tower 历史的原始英雄 + 三层敌人重新闯关
+     * 不重新请求后端 /api/adventure/start，节省一次 Claude 生成。
+     * 注意：开局时不再 pushHistory，而是复用旧 id 并将 status 重置为 ongoing。
+     */
+    function towerStartFromHistory(historyId) {
+      const item = findHistory(historyId);
+      if (!item || item.type !== "tower") return;
+      cancelAll();  // 取消任何进行中的战斗
+      // 深拷贝避免本场战斗篡改历史里的 hero（强化会改 attack/defense/skills）
+      towerState.hero = JSON.parse(JSON.stringify(item.hero));
+      towerState.heroName = item.hero.name;
+      towerState.arena = item.arena || "";
+      towerState.enemies = JSON.parse(JSON.stringify(item.enemies));
+      towerState.level = 1;
+      towerState.cleared = 0;
+      towerState.originHero = JSON.parse(JSON.stringify(item.hero));
+      towerState.historyId = historyId;
+      // 复用旧条目：状态重置为 ongoing
+      updateHistory(historyId, { status: "ongoing", cleared: 0, ts: Date.now() });
+
+      // 切到试炼之塔模式（switchMode 内已 cancelAll；但它也会 reset towerState——绕开它）
+      $("battleMode").style.display = "none";
+      $("towerMode").style.display = "block";
+      $("appTitle").textContent = "🗼 试炼之塔";
+      $("appSubtitle").textContent = "输入勇者之名与挑战场地，手动选招连闯三层试炼";
+      document.querySelectorAll("#modeSwitch button").forEach((b) =>
+        b.classList.toggle("active", b.dataset.mode === "tower")
+      );
+      $("towerInputCard").style.display = "none";
+      $("towerHud").style.display = "block";
+      $("arena").style.display = "block";
+      $("status").innerHTML = `重启「${item.arena || "试炼之塔"}」· 勇者 ${item.hero.name} 再战 <span class="badge">历史复用</span>`;
+      renderFloorTrack();
+      renderHeroStats();
+      enterLevel();
+    }
+
+    // 进入某一层：布置竞技场（英雄 vs 本层敌人），等待玩家选招
+    function enterLevel() {
+      const hero = towerState.hero;
+      const enemy = towerState.enemies[towerState.level - 1];
+      towerState.enemy = enemy;
+      towerState.state = {
+        hero_hp: hero.max_hp,
+        enemy_hp: enemy.max_hp,
+        hero_block: 0,
+        enemy_block: 0,
+        hero_energy: INITIAL_ENERGY,
+        enemy_energy: INITIAL_ENERGY,
+        turn: 0,
+      };
+      renderFloorTrack();
+
+      // 用共享竞技场渲染：英雄固定为正方 a、敌人为反方 b
+      initFighters({ character_a: hero, character_b: enemy });
+      clearShields();
+      // 能量条复位：先清零再点亮 INITIAL_ENERGY，触发出弹珠动效
+      $("faEnergy").dataset.count = 0; $("fbEnergy").dataset.count = 0;
+      setEnergyBoth(INITIAL_ENERGY, INITIAL_ENERGY);
+      $("intro").textContent =
+        `第 ${towerState.level} 层 · ${enemy.name}「${enemy.title || "强敌"}」挡在了前方！`;
+      $("log").innerHTML = "";
+      $("winner").style.display = "none";
+      $("replay").style.display = "none";
+      $("status").textContent = `第 ${towerState.level} / ${TOWER_FLOORS} 层 · 选择你的招式！`;
+      renderSkillBar(false);
+      $("arena").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // 渲染手动选招操作栏（disabled=true 时全部禁用，用于敌方行动/结算期间）
+    // 否则按当前能量 disable 用不起的技能；长按按钮可预览技能详情卡。
+    function renderSkillBar(disabled) {
+      const wrap = $("skillActions");
+      wrap.innerHTML = "";
+      const curEnergy = towerState.state ? towerState.state.hero_energy : INITIAL_ENERGY;
+      towerState.hero.skills.forEach((sk, idx) => {
+        const btn = document.createElement("button");
+        const isDef = sk.kind === "defense";
+        const noEnergy = sk.cost > curEnergy;
+        btn.className = "skill-btn " + (isDef ? "def" : "atk") + (noEnergy ? " no-energy" : "");
+        btn.disabled = disabled || towerState.busy || noEnergy;
+        const tag = isDef ? `🛡️ 格挡${sk.block}%` : `⚔️ 威力${sk.damage}`;
+        const meta = isDef
+          ? "抵挡敌人下一次攻击"
+          : `命中 ${sk.accuracy}%`;
+        const costTag = sk.cost > 0
+          ? `<span class="sb-cost">⚡${sk.cost}</span>`
+          : `<span class="sb-cost free">·0</span>`;
+        btn.innerHTML =
+          costTag +
+          `<div class="sb-name">${sk.name} <span class="sb-tag">${tag}</span></div>` +
+          `<div class="sb-meta">${meta}</div>`;
+        // 短按出招（仅当此次未触发长按）；长按打开技能卡
+        btn.addEventListener("click", (e) => {
+          if (btn._longFired) { btn._longFired = false; return; }
+          if (btn.disabled) return;
+          playerPick(idx);
+        });
+        bindLongPress(btn, () => {
+          btn._longFired = true;
+          openSkillCard(towerState.hero, sk, "a");
+        });
+        wrap.appendChild(btn);
+      });
+      $("skillBarTip").textContent = disabled ? "敌方行动中…" : "短按出招，长按看技能卡";
+      $("skillBarTip").classList.toggle("enemy", disabled);
+      $("skillBar").classList.add("show");
+    }
+
+    // 玩家选了第 idx 个技能：请求后端结算本回合，播放，再判断后续
+    async function playerPick(idx) {
+      if (towerState.busy) return;
+      towerState.busy = true;
+      renderSkillBar(true);
+      const myGen = startRun();
+      try {
+        const resp = await fetch("/api/adventure/turn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            hero: towerState.hero,
+            enemy: towerState.enemy,
+            state: towerState.state,
+            skill_index: idx,
+          }),
+        });
+        if (isStale(myGen)) return;          // 请求飞行期间用户已切换模式
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `服务返回 ${resp.status}`);
+        }
+        const data = await resp.json();
+        if (isStale(myGen)) return;
+        towerState.state = data.state;
+
+        // 播放本回合的行动序列（我方 + 敌方）
+        const ctx = {
+          nameA: towerState.hero.name,
+          maxHp: {
+            [towerState.hero.name]: towerState.hero.max_hp,
+            [towerState.enemy.name]: towerState.enemy.max_hp,
+          },
+        };
+        for (const ev of data.events) {
+          if (isStale(myGen)) return;
+          await playEvent(ev, ctx, myGen);
+        }
+        if (isStale(myGen)) return;
+        // 用权威状态校正护盾徽标 + 能量球（回合末双方各 +1 的恢复也在这里同步上来）
+        setShield("a", towerState.state.hero_block);
+        setShield("b", towerState.state.enemy_block);
+        setEnergyBoth(towerState.state.hero_energy, towerState.state.enemy_energy);
+
+        if (data.battle_over) {
+          $("skillBar").classList.remove("show");
+          const heroWon = data.winner === towerState.hero.name;
+          if (heroWon) {
+            towerState.cleared = towerState.level;
+            renderFloorTrack();
+            Sound.fanfare();
+            await sleep(700);
+            if (isStale(myGen)) return;
+            if (towerState.level >= TOWER_FLOORS) {
+              updateTowerHistory("victory");
+              showResult(true);
+            } else {
+              await rollAndShowUpgrades();
+            }
+          } else {
+            await sleep(400);
+            if (isStale(myGen)) return;
+            updateTowerHistory("defeat");
+            showResult(false);
+          }
+        } else {
+          // 战斗继续：交还操作权
+          towerState.busy = false;
+          renderSkillBar(false);
+          $("status").textContent =
+            `第 ${towerState.level} / ${TOWER_FLOORS} 层 · ` +
+            `你 ${towerState.state.hero_hp}HP/⚡${towerState.state.hero_energy} ` +
+            `vs 敌 ${towerState.state.enemy_hp}HP/⚡${towerState.state.enemy_energy}`;
+          return;
+        }
+      } catch (e) {
+        if (isStale(myGen)) return;          // 已被取消的请求异常不打扰用户
+        $("status").textContent = "出错了：" + e.message;
+        towerState.busy = false;
+        renderSkillBar(false);
+        return;
+      }
+      towerState.busy = false;
+    }
+
+    // 通关一层后：抽取并展示三选一强化
+    async function rollAndShowUpgrades() {
+      try {
+        const resp = await fetch("/api/adventure/upgrades", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hero: towerState.hero }),
+        });
+        if (!resp.ok) throw new Error(`服务返回 ${resp.status}`);
+        const data = await resp.json();
+        showUpgrades(data.upgrades);
+      } catch (e) {
+        $("status").textContent = "抽取强化失败：" + e.message;
+      }
+    }
+
+    // 展示三选一强化
+    function showUpgrades(upgrades) {
+      const wrap = $("upgradeCards");
+      wrap.innerHTML = "";
+      $("upgradeSub").textContent = `通过第 ${towerState.level} 层！三选一，让勇者更强`;
+      upgrades.forEach((u) => {
+        const card = document.createElement("div");
+        card.className = "upgrade-card " + (u.rarity || "common");
+        const rarityLabel = u.rarity === "epic" ? "史诗" : u.rarity === "rare" ? "稀有" : "普通";
+        card.innerHTML =
+          `<span class="uc-rarity">${rarityLabel}</span>` +
+          `<div class="uc-row">` +
+          `  <div class="uc-icon">${u.icon || "✨"}</div>` +
+          `  <div class="uc-body">` +
+          `    <div class="uc-name">${u.name}</div>` +
+          `    <div class="uc-desc">${u.description}</div>` +
+          `  </div>` +
+          `</div>`;
+        card.addEventListener("click", () => chooseUpgrade(u));
+        wrap.appendChild(card);
+      });
+      $("upgradeModal").classList.add("open");
+      Sound.unlock();
+    }
+
+    // 选择一个强化 → 应用到英雄 → 进入下一层
+    async function chooseUpgrade(upgrade) {
+      $("upgradeModal").classList.remove("open");
+      Sound.hit(true);
+      const before = {
+        max_hp: towerState.hero.max_hp,
+        attack: towerState.hero.attack,
+        defense: towerState.hero.defense,
+      };
+      try {
+        const resp = await fetch("/api/adventure/upgrade", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hero: towerState.hero, upgrade }),
+        });
+        if (!resp.ok) throw new Error(`服务返回 ${resp.status}`);
+        const data = await resp.json();
+        towerState.hero = data.hero;
+      } catch (e) {
+        $("status").textContent = "强化应用失败：" + e.message;
+        return;
+      }
+      const delta = {
+        max_hp: towerState.hero.max_hp - before.max_hp,
+        attack: towerState.hero.attack - before.attack,
+        defense: towerState.hero.defense - before.defense,
+      };
+      towerState.level += 1;
+      renderFloorTrack();
+      renderHeroStats(delta);
+      $("status").innerHTML = `已习得「${upgrade.name}」！准备挑战第 ${towerState.level} 层…`;
+      await sleep(1100);
+      renderHeroStats(); // 清除高亮
+      enterLevel();
+    }
+
+    // 结算（成功登顶 / 挑战失败）
+    function showResult(win) {
+      $("resultEmblem").textContent = win ? "👑" : "💀";
+      const title = $("resultTitle");
+      title.textContent = win ? "登顶成功" : "试炼失败";
+      title.className = "result-title " + (win ? "win" : "lose");
+      $("resultSub").textContent = win
+        ? `勇者「${towerState.heroName}」征服了试炼之塔的全部三层，传说就此诞生！`
+        : `勇者「${towerState.heroName}」倒在了第 ${towerState.level} 层，试炼之路止步于此。`;
+      $("resultStats").innerHTML =
+        `<div class="rs-item"><div class="rs-k">通关层数</div><div class="rs-v">${towerState.cleared} / ${TOWER_FLOORS}</div></div>` +
+        `<div class="rs-item"><div class="rs-k">最终生命</div><div class="rs-v">${towerState.hero.max_hp}</div></div>` +
+        `<div class="rs-item"><div class="rs-k">最终攻击</div><div class="rs-v">${towerState.hero.attack}</div></div>`;
+      $("resultModal").classList.add("open");
+      if (win) { Sound.fanfare(); launchConfetti(); }
+      else { Sound.ko(); }
+      persistTowerMatch(win);   // 入排行榜（异步，不阻塞）
+    }
+
+    // 胜利彩纸
+    function launchConfetti() {
+      const colors = ["#ffd24a", "#4f8cff", "#ff5d6c", "#36d399", "#c44fff"];
+      for (let i = 0; i < 70; i++) {
+        const el = document.createElement("div");
+        el.className = "confetti";
+        el.style.left = Math.random() * 100 + "vw";
+        el.style.background = colors[i % colors.length];
+        const dur = 1.8 + Math.random() * 1.6;
+        el.style.animation = `confettiFall ${dur}s linear ${Math.random() * 0.6}s forwards`;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), (dur + 0.8) * 1000);
+      }
+    }
+
+    // 重置试炼，回到输入界面（keepName=true 时保留名字/场地便于再战）
+    function resetTower(keepName) {
+      cancelAll();
+      $("resultModal").classList.remove("open");
+      $("upgradeModal").classList.remove("open");
+      $("arena").style.display = "none";
+      $("towerHud").style.display = "none";
+      $("towerInputCard").style.display = "block";
+      $("skillBar").classList.remove("show");
+      $("status").textContent = "";
+      $("log").innerHTML = "";
+      $("winner").style.display = "none";
+      $("replay").style.display = "none";
+      clearShields();
+      if (!keepName) { $("heroName").value = ""; $("arenaName").value = ""; }
+      resetTowerInMemory();
+    }
+
+    $("towerStart").addEventListener("click", () => { Sound.unlock(); towerStart(); });
+    $("arenaName").addEventListener("keydown", (e) => { if (e.key === "Enter") { Sound.unlock(); towerStart(); } });
+    $("resultRetry").addEventListener("click", () => { Sound.unlock(); resetTower(true); towerStart(); });
+    $("resultHome").addEventListener("click", () => resetTower(false));
+
+    /* ------------------ 开始界面（落地页） ------------------ */
+    // 点「进入」：解锁音频 + 淡出落地页，露出主界面
+    $("splashEnter").addEventListener("click", () => {
+      Sound.unlock();
+      $("splash").classList.add("hide");
+    });
+
+    /* ------------------ 模式切换 ------------------ */
+    function switchMode(mode) {
+      // 关键修复：先取消正在运行的战斗循环（playEvent/playBattle/playerPick 会自检退出）
+      cancelAll();
+      const battle = mode === "battle";
+      const tower = mode === "tower";
+      const story = mode === "story";
+      $("battleMode").style.display = battle ? "block" : "none";
+      $("towerMode").style.display = tower ? "block" : "none";
+      $("storyMode").style.display = story ? "block" : "none";
+      // 收起共享竞技场、操作栏、各类弹窗与角色面板特效，避免状态串台
+      $("arena").style.display = "none";
+      $("skillBar").classList.remove("show");
+      $("status").textContent = "";
+      $("upgradeModal").classList.remove("open");
+      $("resultModal").classList.remove("open");
+      $("skillModal").classList.remove("open");
+      $("winner").style.display = "none";
+      $("replay").style.display = "none";
+      $("log").innerHTML = "";
+      clearShields();
+      clearFx($("faFx")); clearFx($("fbFx"));
+      // 两种模式各自的输入页都恢复可见（查看历史等场景下可能被临时隐藏过）
+      $("inputCard").style.display = "block";
+      $("towerInputCard").style.display = "block";
+      $("towerHud").style.display = "none";
+      // 故事模式：复位到输入页
+      $("storyInputCard").style.display = "block";
+      $("storyArena").style.display = "none";
+      resetTowerInMemory();
+      // 离开故事模式时停止 BGM（在故事/对战中开过的不希望串到输入页）
+      if (!story && !battle && !tower) BGM.stop();
+
+      const titles = { battle: "⚔️ 名字对战", tower: "🗼 试炼之塔", story: "📖 故事对决" };
+      const subs = {
+        battle: "输入两个名字，AI 联网生成角色并自动开战",
+        tower: "输入勇者之名与挑战场地，手动选招连闯三层试炼",
+        story: "输入两位虚拟角色，AI 写一场三局两胜的热血解说对决",
+      };
+      $("appTitle").textContent = titles[mode] || titles.battle;
+      $("appSubtitle").textContent = subs[mode] || subs.battle;
+      document.querySelectorAll("#modeSwitch button").forEach((b) =>
+        b.classList.toggle("active", b.dataset.mode === mode)
+      );
+    }
+
+    // 仅清掉「正在进行的试炼」的内存状态；不动 hero/enemies 之外的 DOM
+    function resetTowerInMemory() {
+      towerState.hero = null;
+      towerState.enemies = [];
+      towerState.enemy = null;
+      towerState.state = null;
+      towerState.level = 1;
+      towerState.cleared = 0;
+      towerState.busy = false;
+      towerState.historyId = null;
+    }
+    document.querySelectorAll("#modeSwitch button").forEach((b) =>
+      b.addEventListener("click", () => { Sound.unlock(); switchMode(b.dataset.mode); })
+    );
+    $("soundToggle").addEventListener("click", () => {
+      const on = Sound.toggle();
+      $("soundToggle").textContent = on ? "🔊" : "🔇";
+    });
+
+    /* ================================================================== *
+     * 📖 故事对决（compete! 移植）
+     * 流程：输入两个角色名 → 召唤训练场过场 → AI 生成双方资料 + 技能 →
+     *      展示角色卡 + 记分板 → 点「开打第 N 回合」→ 调 /api/story/round
+     *      → 打字机播放解说 → 三局两胜结束后保存战绩入排行榜
+     * ------------------------------------------------------------------ */
+    const storyState = {
+      pro: null, ant: null,
+      score: { protagonist: 0, antagonist: 0 },
+      roundNumber: 0,            // 已经打完的回合数
+      history: [],               // 各回合 narration 摘要（喂给下一回合保持剧情连贯）
+      rounds: [],                // 完整回合存档（结束时入库）
+      matchOver: false,
+      champion: "",              // protagonist / antagonist / ""
+      championName: "",
+      saved: false,              // 防重复保存
+      busy: false,
+    };
+
+    function resetStoryState() {
+      storyState.pro = null; storyState.ant = null;
+      storyState.score = { protagonist: 0, antagonist: 0 };
+      storyState.roundNumber = 0;
+      storyState.history = []; storyState.rounds = [];
+      storyState.matchOver = false; storyState.champion = ""; storyState.championName = "";
+      storyState.saved = false; storyState.busy = false;
+    }
+
+    function renderStoryCard(c, side) {
+      const sk = (c.skills || []).map((s) =>
+        `<span class="sc-skill" title="${(s.description||'').replace(/"/g,'&quot;')}">${s.name}</span>`
+      ).join("");
+      return `
+        <div class="story-card ${side}">
+          <div class="sc-head">
+            <div class="sc-name">${c.name || (side==='pro'?'正方':'反方')}</div>
+            <div class="sc-source">${c.source || ""}</div>
+          </div>
+          <div class="sc-summary">${c.summary || ""}</div>
+          <div class="sc-skills">${sk}</div>
+        </div>`;
+    }
+
+    function renderStoryArena() {
+      $("storyCards").innerHTML =
+        renderStoryCard(storyState.pro, "pro") + renderStoryCard(storyState.ant, "ant");
+      $("storySbProName").textContent = storyState.pro.name || "正方";
+      $("storySbAntName").textContent = storyState.ant.name || "反方";
+      $("storySbProNum").textContent = String(storyState.score.protagonist);
+      $("storySbAntNum").textContent = String(storyState.score.antagonist);
+      $("storySbRound").textContent = String(
+        storyState.matchOver ? storyState.roundNumber : storyState.roundNumber + 1
+      );
+      $("storyLog").innerHTML = "";
+      $("storyNextRound").hidden = false;
+      $("storyNextRound").disabled = false;
+      $("storyNextRound").textContent = "⚔️ 开打第 1 回合";
+      $("storyToLb").hidden = true;
+      $("storyRestart").hidden = true;
+    }
+
+    // 打字机：把整段 text 一个字一个字写到 el.textContent，每字 speed 毫秒
+    async function typeText(el, text, speed = 22, myGen) {
+      el.textContent = "";
+      const chars = Array.from(text);
+      for (let i = 0; i < chars.length; i++) {
+        if (myGen !== undefined && isStale(myGen)) return;
+        el.textContent += chars[i];
+        // 标点稍微多停一下，节奏更好
+        const ch = chars[i];
+        const extra = /[，。！？、…—]/.test(ch) ? 60 : 0;
+        await sleep(speed + extra);
+        // 翻滚日志保持最新可见
+        const log = $("storyLog");
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    // 渲染一张回合卡片：标题、胜者（先隐藏）、叙事打字机、高光最后淡入
+    async function appendStoryRoundCard(roundNo, result, myGen) {
+      const log = $("storyLog");
+      const winnerIsPro = result.winner === "protagonist";
+      const card = document.createElement("div");
+      card.className = "story-round-card " + (winnerIsPro ? "pro" : "ant");
+      card.innerHTML =
+        `<div class="srh">
+           <div class="sr-title">第 ${roundNo} 回合</div>
+           <div class="sr-winner">胜：${result.winner_name || ""}</div>
+         </div>
+         <div class="sr-narration"></div>` +
+        (result.highlight ? `<div class="sr-highlight">★ ${result.highlight}</div>` : "");
+      log.appendChild(card);
+      log.scrollTop = log.scrollHeight;
+      const narEl = card.querySelector(".sr-narration");
+      await typeText(narEl, result.narration || "", 22, myGen);
+      if (myGen !== undefined && isStale(myGen)) return;
+      // 解说完成后才揭晓胜者 + 高光
+      card.querySelector(".sr-winner")?.classList.add("show");
+      card.querySelector(".sr-highlight")?.classList.add("show");
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function appendStoryVictoryCard() {
+      const log = $("storyLog");
+      const card = document.createElement("div");
+      card.className = "story-victory";
+      const proName = storyState.pro.name || "正方";
+      const antName = storyState.ant.name || "反方";
+      card.innerHTML =
+        `<div class="sv-crown">👑</div>
+         <div class="sv-label">最 终 冠 军</div>
+         <div class="sv-name">${storyState.championName || "胜者"}</div>
+         <div class="sv-score">${proName} ${storyState.score.protagonist} : ${storyState.score.antagonist} ${antName}</div>`;
+      log.appendChild(card);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    // 整场结束后入库（让排行榜能聚合到）
+    async function persistStoryMatch() {
+      if (storyState.saved) return;
+      storyState.saved = true;
+      try {
+        await fetch("/api/matches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "story",
+            protagonist: storyState.pro,
+            antagonist: storyState.ant,
+            rounds: storyState.rounds,
+            final_score: storyState.score,
+            champion: storyState.champion,
+            champion_name: storyState.championName,
+          }),
+        });
+      } catch (e) {
+        // 存档失败不打断已完成的对局
+        console.warn("故事战绩入库失败：", e);
+      }
+    }
+
+    async function storyStart() {
+      const a = $("storyA").value.trim();
+      const b = $("storyB").value.trim();
+      if (!a || !b) { $("status").textContent = "请填写双方角色名"; return; }
+      $("storyStart").disabled = true;
+      $("status").textContent = "正在召唤双方角色…";
+
+      // 复用召唤训练场（小游戏过场）+ /api/story/characters
+      const gamePromise = MiniGame.show(`正在为「${a}」和「${b}」生成故事角色…`);
+      const apiPromise = (async () => {
+        const resp = await fetch("/api/story/characters", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name_a: a, name_b: b }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `服务返回 ${resp.status}`);
+        }
+        return resp.json();
+      })();
+      apiPromise.then(
+        (d) => MiniGame.finishOk(d, {
+          sub: `「${d.protagonist.name}」 vs 「${d.antagonist.name}」 已就绪！`,
+          enterLabel: "📖 开始故事对决",
+        }),
+        (e) => MiniGame.finishError(e),
+      );
+
+      try {
+        const outcome = await gamePromise;
+        const data = outcome.skipped ? await apiPromise : outcome.result;
+        resetStoryState();
+        storyState.pro = data.protagonist;
+        storyState.ant = data.antagonist;
+        $("storyInputCard").style.display = "none";
+        $("storyArena").style.display = "block";
+        renderStoryArena();
+        $("status").innerHTML = `角色已就绪 <span class="badge">${data.source === "claude" ? "联网生成" : "模拟模式"}</span>`;
+        // 进入战斗，自动放一首默认 BGM（用户切关闭则不放）
+        const sel = $("bgmSelect");
+        if (sel && sel.value !== "none") BGM.start(sel.value);
+      } catch (e) {
+        $("status").textContent = "出错了：" + e.message;
+      } finally {
+        $("storyStart").disabled = false;
+      }
+    }
+
+    async function storyNextRound() {
+      if (storyState.busy || storyState.matchOver) return;
+      storyState.busy = true;
+      const btn = $("storyNextRound");
+      btn.disabled = true;
+      const nextNo = storyState.roundNumber + 1;
+      btn.textContent = `🎙️ 解说员构思第 ${nextNo} 回合中…`;
+      const myGen = startRun();
+
+      try {
+        const resp = await fetch("/api/story/round", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            protagonist: storyState.pro,
+            antagonist: storyState.ant,
+            round_number: nextNo,
+            score: storyState.score,
+            history: storyState.history,
+          }),
+        });
+        if (isStale(myGen)) return;
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.detail || `服务返回 ${resp.status}`);
+        }
+        const data = await resp.json();
+        if (isStale(myGen)) return;
+        storyState.roundNumber = nextNo;
+        storyState.score = data.score;
+        storyState.matchOver = !!data.match_over;
+        storyState.champion = data.champion || "";
+        storyState.championName = data.champion_name || "";
+        storyState.history.push(data.result.narration);
+        storyState.rounds.push({
+          round_number: nextNo,
+          narration: data.result.narration,
+          winner: data.result.winner,
+          winner_name: data.result.winner_name,
+          highlight: data.result.highlight || "",
+          score_after: data.score,
+        });
+
+        await appendStoryRoundCard(nextNo, data.result, myGen);
+        if (isStale(myGen)) return;
+        // 同步记分板
+        $("storySbProNum").textContent = String(storyState.score.protagonist);
+        $("storySbAntNum").textContent = String(storyState.score.antagonist);
+        $("storySbRound").textContent = String(
+          storyState.matchOver ? storyState.roundNumber : storyState.roundNumber + 1
+        );
+
+        if (storyState.matchOver) {
+          Sound.fanfare();
+          BGM.stop();
+          await sleep(400);
+          if (isStale(myGen)) return;
+          appendStoryVictoryCard();
+          btn.hidden = true;
+          $("storyToLb").hidden = false;
+          $("storyRestart").hidden = false;
+          persistStoryMatch();   // 入库后排行榜就能查到
+          refreshHistoryBadge();
+        } else {
+          btn.disabled = false;
+          btn.textContent = `⚔️ 开打第 ${nextNo + 1} 回合`;
+        }
+      } catch (e) {
+        if (isStale(myGen)) return;
+        $("status").textContent = "出错了：" + e.message;
+        btn.disabled = false;
+        btn.textContent = `重试第 ${nextNo} 回合`;
+      } finally {
+        storyState.busy = false;
+      }
+    }
+
+    function storyRestart() {
+      cancelAll();
+      BGM.stop();
+      $("storyInputCard").style.display = "block";
+      $("storyArena").style.display = "none";
+      $("storyA").value = ""; $("storyB").value = "";
+      $("status").textContent = "";
+      resetStoryState();
+    }
+
+    $("storyStart").addEventListener("click", () => { Sound.unlock(); storyStart(); });
+    $("storyB").addEventListener("keydown", (e) => { if (e.key === "Enter") { Sound.unlock(); storyStart(); } });
+    $("storyNextRound").addEventListener("click", () => { Sound.unlock(); storyNextRound(); });
+    $("storyRestart").addEventListener("click", () => { Sound.unlock(); storyRestart(); });
+    $("storyToLb").addEventListener("click", () => { Sound.unlock(); openLeaderboard(); });
+
+    /* ================================================================== *
+     * 🏆 排行榜（compete! 移植）
+     * 数据源：后端 /api/leaderboard 聚合所有 /api/matches 入库的对局
+     * 4 个 tab：大场胜率 / 小场胜率 / 大场胜数 / 小场胜数
+     * 颁奖台前 3，列表 4 名起
+     * ------------------------------------------------------------------ */
+    const LB_TAB_META = {
+      match_rate: {
+        primary: (it) => `${(it.match_rate * 100).toFixed(1)}%`,
+        secondary: (it) => `${it.matches_won} 胜 / ${it.matches_played} 场`,
+      },
+      round_rate: {
+        primary: (it) => `${(it.round_rate * 100).toFixed(1)}%`,
+        secondary: (it) => `${it.rounds_won} 胜 / ${it.rounds_played} 回合`,
+      },
+      match_wins: {
+        primary: (it) => `${it.matches_won}`,
+        secondary: (it) => `共 ${it.matches_played} 场　胜率 ${(it.match_rate * 100).toFixed(0)}%`,
+      },
+      round_wins: {
+        primary: (it) => `${it.rounds_won}`,
+        secondary: (it) => `共 ${it.rounds_played} 回合　胜率 ${(it.round_rate * 100).toFixed(0)}%`,
+      },
+    };
+    let lbCache = null;
+    let lbCurrentTab = "match_rate";
+
+    function renderLbPodium(top3) {
+      // 排列：silver(2) | gold(1) | bronze(3) — 中间最高
+      const slots = [
+        { rank: 2, data: top3[1], cls: "silver", medal: "🥈" },
+        { rank: 1, data: top3[0], cls: "gold",   medal: "🥇" },
+        { rank: 3, data: top3[2], cls: "bronze", medal: "🥉" },
+      ];
+      return slots.map((s) => {
+        if (!s.data) {
+          return `<button class="pcol ${s.cls}" disabled>
+                    <div class="pmedal" style="opacity:.3">${s.medal}</div>
+                    <div class="pname">—</div>
+                    <div class="pnum">—</div>
+                    <div class="pbar">${s.rank}</div>
+                  </button>`;
+        }
+        return `<button class="pcol ${s.cls}" data-name="${s.data.name}">
+                  <div class="pmedal">${s.medal}</div>
+                  <div class="pname">${s.data.name}</div>
+                  <div class="pnum">${LB_TAB_META[lbCurrentTab].primary(s.data)}</div>
+                  <div class="pbar">${s.rank}</div>
+                </button>`;
+      }).join("");
+    }
+
+    function renderLbList(rest) {
+      if (!rest.length) return "";
+      return rest.map((it, i) => `
+        <button class="lb-row" data-name="${it.name}">
+          <span class="rk">${i + 4}</span>
+          <span class="nm">${it.name}<span class="nm-sec">${LB_TAB_META[lbCurrentTab].secondary(it)}</span></span>
+          <span class="pr">${LB_TAB_META[lbCurrentTab].primary(it)}</span>
+        </button>`).join("");
+    }
+
+    function renderLbCurrent() {
+      if (!lbCache) return;
+      const list = lbCache[lbCurrentTab] || [];
+      $("lbPodium").innerHTML = renderLbPodium(list.slice(0, 3));
+      const restHtml = renderLbList(list.slice(3));
+      $("lbList").innerHTML = restHtml || (
+        list.length === 0
+          ? `<div class="lb-empty">榜单为空。<br>打几场比赛后再回来看看 ~</div>`
+          : ""
+      );
+    }
+
+    async function openLeaderboard() {
+      Sound.unlock();
+      lbCurrentTab = "match_rate";
+      document.querySelectorAll("#lbTabs button").forEach((b) =>
+        b.classList.toggle("active", b.dataset.lbtab === "match_rate")
+      );
+      $("lbPodium").innerHTML = "";
+      $("lbList").innerHTML = `<div class="lb-empty">正在加载战绩…</div>`;
+      $("lbModal").classList.add("open");
+      try {
+        const resp = await fetch("/api/leaderboard");
+        if (!resp.ok) throw new Error(`服务返回 ${resp.status}`);
+        lbCache = await resp.json();
+        renderLbCurrent();
+      } catch (e) {
+        $("lbList").innerHTML = `<div class="lb-empty">读取排行榜失败：${e.message || e}</div>`;
+      }
+    }
+    function closeLeaderboard() { $("lbModal").classList.remove("open"); }
+
+    $("lbToggle").addEventListener("click", openLeaderboard);
+    $("lbClose").addEventListener("click", closeLeaderboard);
+    $("lbModal").addEventListener("click", (e) => {
+      if (e.target === $("lbModal")) closeLeaderboard();
+    });
+    document.querySelectorAll("#lbTabs button").forEach((b) => {
+      b.addEventListener("click", () => {
+        lbCurrentTab = b.dataset.lbtab;
+        document.querySelectorAll("#lbTabs button").forEach((x) =>
+          x.classList.toggle("active", x.dataset.lbtab === lbCurrentTab)
+        );
+        renderLbCurrent();
+      });
+    });
+
+    /* ------------------ BGM 控制条 ------------------ */
+    function updateBgmIcon() {
+      $("bgmToggle").textContent = BGM.isPlaying ? "🎵" : "🔇";
+    }
+    $("bgmSelect").addEventListener("change", () => {
+      Sound.unlock();
+      BGM.setTrack($("bgmSelect").value);
+      updateBgmIcon();
+    });
+    $("bgmToggle").addEventListener("click", () => {
+      Sound.unlock();
+      const sel = $("bgmSelect");
+      if (BGM.isPlaying) BGM.stop();
+      else if (sel.value !== "none") BGM.start(sel.value);
+      updateBgmIcon();
+    });
+    // 默认选中第一首但不自动播放；用户首次点击播放按钮 / 进入战斗才会开
+    $("bgmSelect").value = "blaze";
+
+    /* ------------------ 🎲 随机角色池（移植自 compete!/js/character_pool.js） ------------------
+     * ~260 个公认的动漫/游戏/影视/虚拟 IP 角色名 + 一组试炼场地。
+     * 纯静态数据，不调用任何 API、不消耗 token，骰子按下立即抽。
+     */
+    const CHARACTER_POOL = (() => {
+      const ANIME_JP = [
+        "漩涡鸣人","宇智波佐助","春野樱","旗木卡卡西","宇智波鼬","自来也","纲手","大蛇丸","波风水门","宇智波带土",
+        "宇智波斑","我爱罗","日向雏田","宇智波止水","千手柱间",
+        "蒙奇·D·路飞","罗罗诺亚·索隆","山治","娜美","乌索普","托尼托尼·乔巴","妮可·罗宾","弗兰奇","布鲁克","波特卡斯·D·艾斯",
+        "萨博","白胡子","卡普","雷利","红发香克斯","特拉法尔加·罗","尤斯塔斯·基德","黑胡子","青雉","赤犬","黄猿",
+        "孙悟空","贝吉塔","孙悟饭","特兰克斯","克林","比克","弗利萨","沙鲁","魔人布欧","布罗利",
+        "黑崎一护","朽木露琪亚","井上织姬","石田雨龙","阿散井恋次","朽木白哉","蓝染惣右介","市丸银","更木剑八","日番谷冬狮郎","浦原喜助",
+        "灶门炭治郎","灶门祢豆子","我妻善逸","嘴平伊之助","富冈义勇","煉狱杏寿郎","宇髄天元","时透无一郎","伊黑小芭内","悲鸣屿行冥",
+        "不死川实弥","甘露寺蜜璃","胡蝶忍","鬼舞辻无惨","童磨","猗窝座","黑死牟",
+        "五条悟","虎杖悠仁","伏黑惠","钉崎野蔷薇","两面宿傩","夏油杰","七海建人","真人","禅院真希","东堂葵",
+        "艾伦·耶格尔","三笠·阿克曼","阿尔敏·阿诺德","利威尔·阿克曼","让·基尔休坦","莱纳·布朗","贝尔托特·胡佛","阿尼·利昂纳德","汉吉·佐耶","艾尔文·史密斯","吉克·耶格尔",
+        "江户川柯南","工藤新一","毛利兰","灰原哀","服部平次","怪盗基德","毛利小五郎","阿笠博士",
+        "齐木楠雄","海藤瞬","燃堂力","照桥心美","窪谷须妙子",
+        "坂田银时","神乐","志村新八","土方十四郎","近藤勋","冲田总悟","桂小太郎","高杉晋助",
+        "凉宫春日","长门有希","阿虚","朝比奈实玖瑠","古泉一树",
+        "御坂美琴","上条当麻","茵蒂克丝","白井黑子","一方通行","佐天泪子","初春饰利","食蜂操祈",
+        "桐谷和人","结城明日奈","克莱因","莉法","诗乃",
+        "樱木花道","流川枫","赤木刚宪","宫城良田","三井寿","安西教练",
+        "折木奉太郎","千反田爱瑠","伊原摩耶花","福部里志",
+        "比企谷八幡","雪之下雪乃","由比滨结衣","一色彩羽",
+        "爱德华·爱尔利克","阿尔冯斯·爱尔利克","罗伊·马斯坦古","温莉·洛克贝尔",
+        "阿良良木历","战场原黑仪","八九寺真宵","忍野忍","神原骏河","千石抚子",
+        "阿尔托莉雅·潘德拉贡","远坂凛","卫宫士郎","伊莉雅","库·丘林","吉尔伽美什",
+        "夜神月","L","弥海砂","琦玉","杰诺斯","邦古","龙卷","音速的索尼克",
+        "野原新之助","风间彻","樱田妮妮","佐藤正男","野原广志","野原美伢","野原向日葵",
+        "樱桃子","花轮和彦","藤木茂","丸尾末男","哆啦A梦","野比大雄","源静香","刚田武","骨川小夫","出木杉英才",
+        "犬夜叉","日暮戈薇","杀生丸","弥勒","珊瑚","桔梗","奈落",
+        "菜月昴","艾米莉娅","蕾姆","拉姆","贝阿特丽丝","五河士道","夜刀神十香","时崎狂三","鸢一折纸","四糸乃",
+        "阿尼亚·福杰","劳埃德·福杰","约尔·福杰","邦德·福杰","碇真嗣","绫波丽","明日香","渚薰","葛城美里",
+        "电次","玛奇玛","帕瓦","早川秋","平泽唯","秋山澪","田井中律","琴吹紬","中野梓",
+        "乔纳森·乔斯达","乔瑟夫·乔斯达","空条承太郎","东方仗助","乔鲁诺·乔巴拿","空条徐伦","迪奥·布兰度","吉良吉影","普奇神父",
+        "夏目贵志","猫咪老师",
+      ];
+      const ANIME_CN = [
+        "唐僧","猪八戒","沙悟净","白龙马","哪吒","敖丙","太乙真人","杨戬","二郎神","天命人",
+        "喜羊羊","灰太狼","美羊羊","懒羊羊","沸羊羊","暖羊羊","红太狼","熊大","熊二","光头强",
+        "葫芦娃大娃","葫芦娃二娃","葫芦娃七娃","黑猫警长","一禅","一休",
+        "魏无羡","蓝忘机","聂怀桑","江澄","韩立","南宫婉","李莲花","方多病",
+        "涂山红红","涂山苏苏","涂山雅雅","聂小倩","宁采臣","李寻欢","楚留香","陆小凤","小李飞刀",
+        "令狐冲","任盈盈","杨过","小龙女","张无忌","赵敏","郭靖","黄蓉","黄药师","周伯通",
+        "韦小宝","段誉","乔峰","虚竹",
+      ];
+      const GAME_POKEMON = ["皮卡丘","超梦","喷火龙","杰尼龟","妙蛙花","可达鸭","伊布","卡比兽","梦幻","月精灵","洛奇亚","凤王","烈空坐","阿尔宙斯","谜拟Q","路卡利欧","暴飞龙","胖丁","耿鬼","快龙"];
+      const GAME_NINTENDO = ["马里奥","路易吉","库巴","碧琪公主","奇诺比奥","耀西","瓦里奥","林克","塞尔达公主","加农多夫","卡比","梅塔骑士"];
+      const GAME_OTHER = [
+        "索尼克","塔尔斯","影子","克劳德·斯特莱夫","蒂法·洛克哈特","爱丽丝·盖恩斯巴勒","萨菲罗斯","但丁","维吉尔","尼禄",
+        "里昂·肯尼迪","克莱尔·雷德菲尔德","克里斯·雷德菲尔德","吉尔·瓦伦丁","艾达·王","杰洛特","叶奈法","希里","特莉丝",
+        "玛莲妮亚","拉妮","葛瑞克","苇名一心","弦一郎","士官长","Cortana","索利德·斯内克","雨宫莲","明智吾郎",
+      ];
+      const GAME_HOYOVERSE = [
+        "雷电将军","神里绫华","胡桃","钟离","温迪","可莉","八重神子","刻晴","夜兰","宵宫",
+        "纳西妲","芙宁娜","派蒙","空","荧","达达利亚","散兵","优菈","安柏","凯亚","迪卢克",
+        "银狼","希儿","罗刹","丹恒","星","镜流","阮·梅","托帕","停云","杰帕德",
+        "三月七","卡芙卡","符玄","黑塔",
+      ];
+      const GAME_MOBA = [
+        "阿狸","亚索","提莫","盖伦","寒冰","剑圣","阿卡丽","卡兹克","锐雯","劫","卡莎","厄斐琉斯","阿木木","皎月","瑞兹",
+        "李白","貂蝉","妲己","韩信","孙尚香","诸葛亮","鲁班七号","安琪拉",
+      ];
+      const GAME_THREEKINGDOMS = [
+        "吕布","关羽","张飞","赵云","马超","黄忠","典韦","夏侯惇","夏侯渊","孙策",
+        "孙权","周瑜","陆逊","司马懿","刘备","曹操","甄姬",
+      ];
+      const WESTERN = [
+        "哈利·波特","赫敏·格兰杰","罗恩·韦斯莱","伏地魔","邓布利多","西弗勒斯·斯内普","海格","德拉科·马尔福","卢娜·洛夫古德","纳威·隆巴顿","小天狼星",
+        "弗罗多","山姆","阿拉贡","莱戈拉斯","咕噜","甘道夫","萨鲁曼",
+        "蝙蝠侠","小丑","超人","神奇女侠","闪电侠","罗宾","海王","毒藤女",
+        "钢铁侠","美国队长","雷神托尔","绿巨人","黑寡妇","奇异博士","蜘蛛侠","灭霸","洛基","死侍","金刚狼",
+        "卢克·天行者","莱娅公主","汉·索罗","达斯·维达","尤达大师","杰克船长","杰克·萨利","奈蒂莉",
+        "米老鼠","唐老鸭","高飞","白雪公主","灰姑娘","艾莎","安娜","莫阿娜","爱丽儿","贝儿","花木兰",
+        "胡迪","巴斯光年","瓦力","西丽","海绵宝宝","派大星","章鱼哥","蟹老板","珊迪","皮老板",
+        "荷马·辛普森","巴特·辛普森","丽萨·辛普森","斯坦","凯尔","卡特曼","肯尼",
+        "暮光闪闪","云宝黛西","苹果嘉儿","云宝","萍琪派",
+      ];
+      const CLASSIC = ["贾宝玉","林黛玉","薛宝钗","王熙凤","武松","林冲","宋江","李逵","鲁智深","燕青","晁盖","夏洛克·福尔摩斯","约翰·华生","莫里亚蒂教授","唐吉诃德"];
+      const VOCALOID = ["初音未来","镜音双子","巡音流歌","洛天依","言和","乐正龙牙","星尘","心华"];
+      const GAME_GACHA = [
+        "阿米娅","凯尔希","银灰","推进之王","能天使","德克萨斯","陈","黑","夜莺","山",
+        "琪亚娜","布洛尼娅","雷电芽衣","符华","李素裳","白子","星野","日奈","渚",
+      ];
+      // 把当前项目里出现过的「孙悟空」放在前面，让用户初见就有共鸣
+      const all = [
+        "孙悟空", "皮卡丘", "齐木楠雄",  // 与项目示例呼应
+        ...ANIME_JP, ...ANIME_CN, ...GAME_POKEMON, ...GAME_NINTENDO, ...GAME_OTHER,
+        ...GAME_HOYOVERSE, ...GAME_MOBA, ...GAME_THREEKINGDOMS, ...WESTERN,
+        ...CLASSIC, ...VOCALOID, ...GAME_GACHA,
+      ];
+      return Array.from(new Set(all));   // 去重保序
+    })();
+
+    // 试炼之塔场地池：风格各异，方便骰子一键给个有意思的场景
+    const ARENA_POOL = [
+      "熔岩深渊", "霓虹赛博都市", "武侠江湖", "蒸汽朋克工坊", "末日废土",
+      "幽灵海盗船", "黑魔法塔", "高维量子空间", "蘑菇王国", "冰晶神殿",
+      "克苏鲁深海", "古墓探险", "妖怪温泉", "巨龙巢穴", "天空浮岛",
+      "无尽地牢", "学院魔法决斗场", "猎魔人荒野", "时空裂缝", "鬼怪杂货铺",
+    ];
+
+    function pickRandom(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+    function pickTwoDifferent(arr) {
+      if (arr.length < 2) return [arr[0], arr[0]];
+      const i = Math.floor(Math.random() * arr.length);
+      let j = Math.floor(Math.random() * (arr.length - 1));
+      if (j >= i) j += 1;
+      return [arr[i], arr[j]];
+    }
+
+    // 给指定 input 写入新文本，并触发 input 事件（万一以后接监听）
+    function setInputValue(el, val) {
+      el.value = val;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    // 骰子按下视觉反馈：旋转动画 + 短暂禁用
+    function spinDice(btn) {
+      btn.classList.remove("rolling");
+      void btn.offsetWidth;
+      btn.classList.add("rolling");
+      setTimeout(() => btn.classList.remove("rolling"), 600);
+    }
+
+    // 名字对战 + 故事对决：两个输入框，各抽一个不同的角色
+    function rollTwoIntoInputs(inputA, inputB, btn) {
+      Sound.unlock();
+      spinDice(btn);
+      const [a, b] = pickTwoDifferent(CHARACTER_POOL);
+      setInputValue(inputA, a);
+      setInputValue(inputB, b);
+    }
+    $("diceBattle").addEventListener("click", () =>
+      rollTwoIntoInputs($("sideA"), $("sideB"), $("diceBattle"))
+    );
+    $("diceStory").addEventListener("click", () =>
+      rollTwoIntoInputs($("storyA"), $("storyB"), $("diceStory"))
+    );
+    // 试炼之塔：勇者 + 场地各一个
+    $("diceTower").addEventListener("click", () => {
+      Sound.unlock();
+      spinDice($("diceTower"));
+      setInputValue($("heroName"), pickRandom(CHARACTER_POOL));
+      setInputValue($("arenaName"), pickRandom(ARENA_POOL));
+    });
+
+    /* ------------------ 名字对战结束后入库（让排行榜涵盖所有模式） ------------------ */
+    async function persistBattleMatch(r) {
+      try {
+        // 把 events 简化为 rounds 形式（每条按出招者计胜负）
+        const proName = r.character_a.name;
+        const antName = r.character_b.name;
+        // 名字对战只有一个最终胜者，用一条 "round" 充当：胜方为冠军
+        const championSide =
+          r.winner === proName ? "protagonist"
+          : r.winner === antName ? "antagonist" : "";
+        if (!championSide) return;        // 平局不入库
+        await fetch("/api/matches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "battle",
+            protagonist: { name: proName, source: "名字对战", summary: r.character_a.title || "" },
+            antagonist:  { name: antName, source: "名字对战", summary: r.character_b.title || "" },
+            rounds: [{
+              round_number: 1,
+              winner: championSide,
+              winner_name: r.winner,
+              narration: r.intro || "",
+            }],
+            final_score: championSide === "protagonist" ? { protagonist: 1, antagonist: 0 } : { protagonist: 0, antagonist: 1 },
+            champion: championSide,
+            champion_name: r.winner,
+          }),
+        });
+      } catch (e) {
+        console.warn("名字对战战绩入库失败：", e);
+      }
+    }
+
+    /* ------------------ 试炼之塔结束后入库 ------------------ */
+    async function persistTowerMatch(heroWon) {
+      try {
+        const hero = towerState.hero;
+        if (!hero) return;
+        // 用第一个敌人作为「反方」代表（试炼之塔是 1 v 3 的 PVE，没有单一对手）
+        const enemy = towerState.enemies[towerState.enemies.length - 1] || towerState.enemy;
+        if (!enemy) return;
+        const champion = heroWon ? "protagonist" : "antagonist";
+        const championName = heroWon ? hero.name : enemy.name;
+        // 把"通关了几层"记为 hero 的 round wins
+        const rounds = [];
+        for (let i = 0; i < towerState.cleared; i++) {
+          rounds.push({ round_number: i + 1, winner: "protagonist", winner_name: hero.name });
+        }
+        if (!heroWon) {
+          rounds.push({ round_number: towerState.cleared + 1, winner: "antagonist", winner_name: enemy.name });
+        }
+        await fetch("/api/matches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "tower",
+            protagonist: { name: hero.name, source: "试炼之塔", summary: hero.title || "" },
+            antagonist:  { name: enemy.name, source: "试炼之塔", summary: enemy.title || "" },
+            rounds,
+            final_score: heroWon ? { protagonist: 1, antagonist: 0 } : { protagonist: 0, antagonist: 1 },
+            champion,
+            champion_name: championName,
+          }),
+        });
+      } catch (e) {
+        console.warn("试炼之塔战绩入库失败：", e);
+      }
+    }
+    let historyTab = "tower";  // 当前 tab：tower | battle
+
+    function refreshHistoryBadge() {
+      const n = loadHistory().length;
+      const b = $("historyBadge");
+      b.textContent = n > 99 ? "99+" : String(n);
+      b.classList.toggle("show", n > 0);
+    }
+
+    function fmtTime(ts) {
+      const d = new Date(ts);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    // 把一组技能渲染为一排小标签（用于历史条目里展示英雄/角色技能）
+    function renderSkillTags(skills) {
+      return skills.map((sk) => {
+        const isDef = sk.kind === "defense";
+        const cls = "hi-skill" + (isDef ? " def" : "");
+        const stat = isDef ? `🛡️${sk.block}%` : `⚔️${sk.damage}`;
+        const cost = (sk.cost || 0) > 0 ? ` ⚡${sk.cost}` : "";
+        return `<span class="${cls}">${sk.name} ${stat}${cost}</span>`;
+      }).join("");
+    }
+
+    function renderHistoryList() {
+      const all = loadHistory();
+      const list = all.filter((it) => it.type === historyTab);
+      const wrap = $("historyList");
+      if (!list.length) {
+        wrap.innerHTML = `<div class="history-empty">还没有${historyTab === "tower" ? "试炼" : "对战"}记录<br>去开一局，结束后就会出现在这里</div>`;
+        return;
+      }
+      wrap.innerHTML = list.map((it) => {
+        if (it.type === "tower") {
+          const statusTag = it.status === "victory"
+            ? `<span class="hi-tag victory">🏆 登顶 ${it.cleared}/${TOWER_FLOORS}</span>`
+            : it.status === "defeat"
+              ? `<span class="hi-tag defeat">💀 折戟 ${it.cleared}/${TOWER_FLOORS}</span>`
+              : `<span class="hi-tag ongoing">⏳ 进行中 ${it.cleared}/${TOWER_FLOORS}</span>`;
+          const arenaTag = it.arena ? `<span class="hi-tag">🌋 ${it.arena}</span>` : "";
+          const cls = "history-item " + (it.status === "victory" ? "victory" : it.status === "defeat" ? "defeat" : "");
+          return `
+            <div class="${cls}" data-id="${it.id}">
+              <div class="hi-head">
+                <div class="hi-title">🗼 ${it.hero.name}</div>
+                <div class="hi-time">${fmtTime(it.ts)}</div>
+              </div>
+              <div class="hi-meta">${arenaTag}${statusTag}
+                <span class="hi-tag">❤️${it.hero.max_hp}</span>
+                <span class="hi-tag">⚔️${it.hero.attack}</span>
+                <span class="hi-tag">🛡️${it.hero.defense}</span>
+              </div>
+              <div class="hi-skills">${renderSkillTags(it.hero.skills)}</div>
+              <div class="hi-actions">
+                <button class="hi-btn primary" data-action="replay">🔥 用此英雄重闯</button>
+                <button class="hi-btn del" data-action="delete" title="删除">🗑</button>
+              </div>
+            </div>`;
+        } else {
+          // battle 类型：双方角色 + 胜方
+          const winTag = it.winner === "平局"
+            ? `<span class="hi-tag">🤝 平局</span>`
+            : `<span class="hi-tag victory">🏆 ${it.winner}</span>`;
+          return `
+            <div class="history-item" data-id="${it.id}">
+              <div class="hi-head">
+                <div class="hi-title">⚔️ ${it.side_a} vs ${it.side_b}</div>
+                <div class="hi-time">${fmtTime(it.ts)}</div>
+              </div>
+              <div class="hi-meta">${winTag}</div>
+              <div class="hi-skills">${renderSkillTags(it.character_a.skills)}</div>
+              <div class="hi-skills" style="margin-bottom:8px">${renderSkillTags(it.character_b.skills)}</div>
+              <div class="hi-actions">
+                <button class="hi-btn ghost" data-action="view">👁 查看角色</button>
+                <button class="hi-btn del" data-action="delete" title="删除">🗑</button>
+              </div>
+            </div>`;
+        }
+      }).join("");
+    }
+
+    function openHistory() {
+      Sound.unlock();
+      refreshHistoryBadge();
+      renderHistoryList();
+      $("historyModal").classList.add("open");
+    }
+    function closeHistory() { $("historyModal").classList.remove("open"); }
+
+    $("historyToggle").addEventListener("click", openHistory);
+    $("historyClose").addEventListener("click", closeHistory);
+    $("historyClear").addEventListener("click", () => {
+      if (!loadHistory().length) return;
+      if (confirm("清空所有历史档案？此操作不可撤销")) {
+        clearHistory();
+        refreshHistoryBadge();
+        renderHistoryList();
+      }
+    });
+    // tab 切换
+    document.querySelectorAll(".history-tabs button").forEach((b) => {
+      b.addEventListener("click", () => {
+        historyTab = b.dataset.htab;
+        document.querySelectorAll(".history-tabs button").forEach((x) =>
+          x.classList.toggle("active", x.dataset.htab === historyTab)
+        );
+        renderHistoryList();
+      });
+    });
+    // 事件代理：点列表里的按钮
+    $("historyList").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action]");
+      if (!btn) return;
+      const itemEl = btn.closest(".history-item");
+      const id = itemEl && itemEl.dataset.id;
+      if (!id) return;
+      const action = btn.dataset.action;
+      if (action === "delete") {
+        removeHistory(id);
+        refreshHistoryBadge();
+        renderHistoryList();
+      } else if (action === "replay") {
+        closeHistory();
+        towerStartFromHistory(id);
+      } else if (action === "view") {
+        // 名字对战：以只读方式渲染双方角色面板（不进入战斗）
+        const item = findHistory(id);
+        if (item) viewBattleHistory(item);
+      }
+    });
+    // 点遮罩关闭
+    $("historyModal").addEventListener("click", (e) => {
+      if (e.target === $("historyModal")) closeHistory();
+    });
+
+    // 名字对战历史：把双方角色摆上竞技场（不开战、不入历史）
+    function viewBattleHistory(item) {
+      cancelAll();
+      // 切到 battle 模式但不显示输入卡片，直接秀角色
+      $("battleMode").style.display = "block";
+      $("towerMode").style.display = "none";
+      document.querySelectorAll("#modeSwitch button").forEach((b) =>
+        b.classList.toggle("active", b.dataset.mode === "battle")
+      );
+      $("inputCard").style.display = "none";
+      $("arena").style.display = "block";
+      $("skillBar").classList.remove("show");
+      $("log").innerHTML = "";
+      $("winner").style.display = "block";
+      $("winner").textContent = item.winner === "平局" ? "🤝 平局！" : `🏆 胜者：${item.winner}`;
+      initFighters({ character_a: item.character_a, character_b: item.character_b });
+      $("intro").textContent = `历史档案 · ${item.side_a} vs ${item.side_b}（长按技能查看详情）`;
+      closeHistory();
+      $("arena").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // 技能详情卡关闭：✕按钮 / 点遮罩 / Esc
+    $("scClose").addEventListener("click", closeSkillCard);
+    $("skillModal").addEventListener("click", (e) => {
+      if (e.target === $("skillModal")) closeSkillCard();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeSkillCard();
+        closeHistory();
+      }
+    });
+
+    // 启动时刷一下徽章
+    refreshHistoryBadge();
+  </script>
+</body>
+</html>
