@@ -119,6 +119,23 @@ def get_match(match_id: str) -> dict[str, Any] | None:
             return None
 
 
+def delete_match(match_id: str) -> bool:
+    """删除一场比赛存档。返回是否删除成功。
+
+    用于「在前端历史档案里删除某条记录时，同步把后端的存档也删掉」，
+    这样排行榜（基于扫描存档目录聚合）会自动反映出胜率变化。
+    """
+    with _LOCK:
+        p = _path(match_id)
+        if not p.exists():
+            return False
+        try:
+            p.unlink()
+            return True
+        except OSError:
+            return False
+
+
 # ---------------------------------------------------------------------------
 # 排行榜聚合
 # ---------------------------------------------------------------------------

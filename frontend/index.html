@@ -67,6 +67,7 @@
       font-style: italic;
       line-height: 1.05;
       margin: 18px 0 2px;
+      padding-top: 48px;     /* 让出顶部固定按钮栏的位置 */
       white-space: nowrap;
       background: linear-gradient(180deg, #eafcff 0%, #7fd8ff 55%, #2fb8ff 100%);
       -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
@@ -322,29 +323,7 @@
       will-change: transform;
     }
     .top-bar > * { pointer-events: auto; }
-    .top-bar.hidden { transform: translateY(-110%); opacity: 0; }
     .top-bar-right { display: flex; align-items: center; gap: 6px; }
-
-    /* 顶栏拉出条：永远固定在屏幕顶部 12px 高，点一下显隐顶栏。
-     * 中间有个发光小条做视觉指示，让用户知道"这里能戳"。 */
-    .top-bar-handle {
-      position: fixed; top: 0; left: 0; right: 0;
-      height: 14px; padding: 0; margin: 0;
-      z-index: 21;          /* 高于 top-bar 本体，便于始终可点 */
-      border: none; background: transparent; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .top-bar-handle::after {
-      content: ""; display: block;
-      width: 40px; height: 4px; border-radius: 2px;
-      background: rgba(120,200,255,.45);
-      box-shadow: 0 0 8px rgba(56,224,255,.5);
-      transition: width .2s, background .2s;
-    }
-    .top-bar-handle:hover::after,
-    .top-bar-handle:active::after {
-      width: 60px; background: rgba(120,220,255,.9);
-    }
 
     /* 历史按钮（top-bar 子元素） */
     .history-toggle {
@@ -1422,13 +1401,11 @@
       font-size: 13px; font-weight: 800; color: var(--neon); text-align: center;
       text-shadow: 0 0 8px var(--neon-soft);
     }
+    /* 4 名及之后的列表：用户要求名字改回白色，与颁奖台前三名（黑字白晕）形成区分 */
     .lb-row .nm {
-      font-size: 13px; font-weight: 800; color: #0a0a0a;
+      font-size: 13px; font-weight: 700; color: #ffffff;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      text-shadow:
-        0 0 6px #fff,
-        0 0 10px rgba(255,255,255,.85),
-        0 0 16px rgba(255,255,255,.5);
+      text-shadow: 0 1px 3px rgba(0,0,0,.5);
     }
     /* 第二行（"X 胜 / Y 场" 这类数据）原来用 var(--muted)=#7fa6cc 太灰，
      * 改用偏蓝白 #b8d4f0 在 rgba(28,40,80,.6) 卡片上对比度明显更高 */
@@ -1706,12 +1683,8 @@
     </div>
   </div>
 
-  <!-- 顶栏拉出条：永远固定在屏幕顶端 1px 高，点击/触碰即可显隐顶栏。
-       让默认隐藏的顶栏在任何时候都能被召出来（包括 scroll=0 时）。 -->
-  <button class="top-bar-handle" id="topBarHandle" type="button" title="显示/隐藏顶部按钮"></button>
-
-  <!-- 顶部按钮栏（默认隐藏，向上滚动 / 点拉出条 显形） -->
-  <div class="top-bar hidden" id="topBar">
+  <!-- 顶部按钮栏（长期可见） -->
+  <div class="top-bar" id="topBar">
     <button class="lb-toggle" id="lbToggle" title="排行榜">🏆</button>
     <div class="top-bar-right">
       <!-- 音频开关：一键管 SFX + BGM，不分别。点击切换"全开/全关"。
@@ -1926,6 +1899,7 @@
     <div class="history-tabs">
       <button data-htab="tower" class="active">🗼 试炼之塔</button>
       <button data-htab="battle">⚔️ 混沌出击</button>
+      <button data-htab="story">📖 乱斗模式</button>
     </div>
     <div class="history-list" id="historyList"></div>
   </div>
@@ -2646,13 +2620,15 @@
         const onHit = (e) => {
           if (!state.active) return;
           e.stopPropagation();
-          anim.cancel();
-          const x = parseFloat(el.style.left) + el.offsetWidth / 2 +
-                    (el.style.transform ? 0 : 0);   // 用当前位置爆开
+          // 关键：必须先取 rect 再 cancel —— Web Animation 的 cancel() 会把
+          // 元素的 transform 回到初始状态，让 getBoundingClientRect() 跑回
+          // spawn 时的起点位置（arena 底部）。之前漏了这点，导致所有飘分都"固定"
+          // 在屏幕底部。先存 rect、再 cancel，飘字就能跟着靶子当前位置出现。
           const r = el.getBoundingClientRect();
           const ar = arena.getBoundingClientRect();
           const localX = r.left - ar.left + r.width / 2;
           const localY = r.top  - ar.top  + r.height / 2;
+          anim.cancel();
           remove();
           $$("mgHint").classList.add("hide");
           if (type.kind === "bomb") {
@@ -3341,7 +3317,9 @@
       $("replay").style.display = "block";
       if (r.winner !== "平局") Sound.fanfare();
       // 名字对战完成后入历史档案 + 入排行榜库
-      pushHistory({
+      // 先把记录写进 localStorage（拿到本地 id），再发后端拿 backendId 并回填，
+      // 删除时凭 backendId 级联清后端 → 排行榜立刻反映。
+      const localId = pushHistory({
         type: "battle",
         side_a: a.name,
         side_b: b.name,
@@ -3350,7 +3328,9 @@
         character_b: b,
       });
       refreshHistoryBadge();
-      persistBattleMatch(r);    // 入排行榜（异步，不阻塞）
+      persistBattleMatch(r).then((backendId) => {
+        if (backendId) updateHistory(localId, { backendId });
+      });
       return r.winner;
     }
 
@@ -3822,7 +3802,13 @@
       $("resultModal").classList.add("open");
       if (win) { Sound.fanfare(); launchConfetti(); }
       else { Sound.ko(); }
-      persistTowerMatch(win);   // 入排行榜（异步，不阻塞）
+      // 写入排行榜库；拿到 backendId 后回填到本场试炼的 localStorage 条目，
+      // 这样删除历史时能级联清后端、影响胜率统计。
+      persistTowerMatch(win).then((backendId) => {
+        if (backendId && towerState.historyId) {
+          updateHistory(towerState.historyId, { backendId });
+        }
+      });
     }
 
     // 胜利彩纸
@@ -4115,8 +4101,12 @@
     async function persistStoryMatch() {
       if (storyState.saved) return;
       storyState.saved = true;
+      // 1) 把整场结果发给后端 /api/matches；后端会返回新存档的 backendId
+      //    backendId 写入下面 pushHistory 的本地记录里，删除时凭它级联清后端，
+      //    这样排行榜聚合（扫盘）就能实时反映胜率变化。
+      let backendId = "";
       try {
-        await fetch("/api/matches", {
+        const resp = await fetch("/api/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -4129,10 +4119,24 @@
             champion_name: storyState.championName,
           }),
         });
+        if (resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          backendId = data.id || "";
+        }
       } catch (e) {
-        // 存档失败不打断已完成的对局
-        console.warn("故事战绩入库失败：", e);
+        console.warn("乱斗战绩入库失败：", e);
       }
+      // 2) 写入前端历史档案。即使后端 POST 失败也写一条，至少本地可见。
+      pushHistory({
+        type: "story",
+        backendId,                              // 关键：用它删后端
+        protagonist: storyState.pro,
+        antagonist: storyState.ant,
+        rounds: storyState.rounds,
+        final_score: storyState.score,
+        champion: storyState.champion,
+        champion_name: storyState.championName,
+      });
     }
 
     async function storyStart() {
@@ -4429,52 +4433,7 @@
     // 默认选第一首；audioOn=true 但 BGM 不自动播放 — 等用户进入战斗 / 点开关才开
     $("bgmSelect").value = "blaze";
 
-    /* ------------------ 顶部 top-bar 默认隐藏，按需召出 ------------------
-     * 行为：
-     *   - 初始隐藏（HTML 上就带 .hidden）；
-     *   - 向上滚动 → 显形；
-     *   - 向下滚动 → 隐藏；
-     *   - 点屏幕最顶部的拉出条（top-bar-handle）→ 切换显隐，
-     *     给 scroll=0 时的用户提供"叫出来"的入口；
-     *   - 弹窗打开会自动显形便于关闭。
-     */
-    (() => {
-      const bar = $("topBar");
-      const handle = $("topBarHandle");
-      if (!bar) return;
-      let lastY = window.scrollY;
-      let pending = false;
-      const THRESHOLD = 6;     // 单次滚动至少 6px 才响应（防抖）
-
-      function show() { bar.classList.remove("hidden"); }
-      function hide() { bar.classList.add("hidden"); }
-      function toggle() { bar.classList.toggle("hidden"); }
-
-      const onScroll = () => {
-        if (pending) return;
-        pending = true;
-        requestAnimationFrame(() => {
-          const y = window.scrollY;
-          const dy = y - lastY;
-          if (dy > THRESHOLD) hide();
-          else if (dy < -THRESHOLD) show();
-          lastY = y;
-          pending = false;
-        });
-      };
-      window.addEventListener("scroll", onScroll, { passive: true });
-
-      if (handle) handle.addEventListener("click", toggle);
-
-      // 任何弹窗打开时强制显形，便于关闭
-      ["lbModal", "historyModal", "skillModal", "resultModal", "upgradeModal", "mgModal"].forEach((id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        new MutationObserver(() => {
-          if (el.classList.contains("open")) show();
-        }).observe(el, { attributes: true, attributeFilter: ["class"] });
-      });
-    })();
+    // 顶部 top-bar 长期可见（之前的滚动隐藏/拉出条逻辑已移除）
 
     /* ------------------ 🎲 随机角色池（移植自 compete!/js/character_pool.js） ------------------
      * ~260 个公认的动漫/游戏/影视/虚拟 IP 角色名 + 一组试炼场地。
@@ -4625,7 +4584,9 @@
       setInputValue($("arenaName"), pickRandom(ARENA_POOL));
     });
 
-    /* ------------------ 名字对战结束后入库（让排行榜涵盖所有模式） ------------------ */
+    /* ------------------ 名字对战结束后入库（让排行榜涵盖所有模式） ------------------
+     * 同时返回 backendId 给上层 playBattle 用，写进 localStorage 历史档案的
+     * 对应条目里，删除时可级联清后端。 */
     async function persistBattleMatch(r) {
       try {
         // 把 events 简化为 rounds 形式（每条按出招者计胜负）
@@ -4635,8 +4596,8 @@
         const championSide =
           r.winner === proName ? "protagonist"
           : r.winner === antName ? "antagonist" : "";
-        if (!championSide) return;        // 平局不入库
-        await fetch("/api/matches", {
+        if (!championSide) return "";        // 平局不入库
+        const resp = await fetch("/api/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -4654,19 +4615,26 @@
             champion_name: r.winner,
           }),
         });
+        if (resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          return data.id || "";
+        }
       } catch (e) {
-        console.warn("名字对战战绩入库失败：", e);
+        console.warn("混沌出击战绩入库失败：", e);
       }
+      return "";
     }
 
-    /* ------------------ 试炼之塔结束后入库 ------------------ */
+    /* ------------------ 试炼之塔结束后入库 ------------------
+     * 返回 backendId 给上层 showResult 用，写进 localStorage 历史档案的
+     * 对应条目里，删除时可级联清后端。 */
     async function persistTowerMatch(heroWon) {
       try {
         const hero = towerState.hero;
-        if (!hero) return;
+        if (!hero) return "";
         // 用第一个敌人作为「反方」代表（试炼之塔是 1 v 3 的 PVE，没有单一对手）
         const enemy = towerState.enemies[towerState.enemies.length - 1] || towerState.enemy;
-        if (!enemy) return;
+        if (!enemy) return "";
         const champion = heroWon ? "protagonist" : "antagonist";
         const championName = heroWon ? hero.name : enemy.name;
         // 把"通关了几层"记为 hero 的 round wins
@@ -4677,7 +4645,7 @@
         if (!heroWon) {
           rounds.push({ round_number: towerState.cleared + 1, winner: "antagonist", winner_name: enemy.name });
         }
-        await fetch("/api/matches", {
+        const resp = await fetch("/api/matches", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -4690,9 +4658,14 @@
             champion_name: championName,
           }),
         });
+        if (resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          return data.id || "";
+        }
       } catch (e) {
         console.warn("试炼之塔战绩入库失败：", e);
       }
+      return "";
     }
     let historyTab = "tower";  // 当前 tab：tower | battle
 
@@ -4725,7 +4698,8 @@
       const list = all.filter((it) => it.type === historyTab);
       const wrap = $("historyList");
       if (!list.length) {
-        wrap.innerHTML = `<div class="history-empty">还没有${historyTab === "tower" ? "试炼" : "混沌出击"}记录<br>去开一局，结束后就会出现在这里</div>`;
+        const tabName = { tower: "试炼", battle: "混沌出击", story: "乱斗" }[historyTab] || "对战";
+        wrap.innerHTML = `<div class="history-empty">还没有${tabName}记录<br>去开一局，结束后就会出现在这里</div>`;
         return;
       }
       wrap.innerHTML = list.map((it) => {
@@ -4751,6 +4725,39 @@
               <div class="hi-skills">${renderSkillTags(it.hero.skills)}</div>
               <div class="hi-actions">
                 <button class="hi-btn primary" data-action="replay">🔥 用此英雄重闯</button>
+                <button class="hi-btn del" data-action="delete" title="删除">🗑</button>
+              </div>
+            </div>`;
+        } else if (it.type === "story") {
+          // 乱斗模式：双方角色 + 三局两胜的 final_score + 各回合 winner
+          const proName = (it.protagonist && it.protagonist.name) || "正方";
+          const antName = (it.antagonist && it.antagonist.name) || "反方";
+          const champName = it.champion_name || "";
+          const winTag = champName
+            ? `<span class="hi-tag victory">🏆 ${champName}</span>`
+            : `<span class="hi-tag">🤝 平局</span>`;
+          const score = it.final_score || { protagonist: 0, antagonist: 0 };
+          const scoreTag = `<span class="hi-tag">${score.protagonist} : ${score.antagonist}</span>`;
+          const roundsCnt = (it.rounds || []).length;
+          const proSkills = (it.protagonist && it.protagonist.skills) || [];
+          const antSkills = (it.antagonist && it.antagonist.skills) || [];
+          // 乱斗角色的 skill 没有 damage/cost，渲染时只显示名字
+          const renderStorySkills = (sks) => sks.map((sk) =>
+            `<span class="hi-skill">${sk.name}</span>`
+          ).join("");
+          return `
+            <div class="history-item ${champName ? "victory" : ""}" data-id="${it.id}">
+              <div class="hi-head">
+                <div class="hi-title">📖 ${proName} vs ${antName}</div>
+                <div class="hi-time">${fmtTime(it.ts)}</div>
+              </div>
+              <div class="hi-meta">${winTag}${scoreTag}
+                <span class="hi-tag">共 ${roundsCnt} 回合</span>
+              </div>
+              <div class="hi-skills">${renderStorySkills(proSkills)}</div>
+              <div class="hi-skills" style="margin-bottom:8px">${renderStorySkills(antSkills)}</div>
+              <div class="hi-actions">
+                <button class="hi-btn ghost" data-action="view-story">📜 查看战报</button>
                 <button class="hi-btn del" data-action="delete" title="删除">🗑</button>
               </div>
             </div>`;
@@ -4790,6 +4797,13 @@
     $("historyClear").addEventListener("click", () => {
       if (!loadHistory().length) return;
       if (confirm("清空所有历史档案？此操作不可撤销")) {
+        // 同时把所有带 backendId 的 backend 存档也删掉，排行榜立即归零
+        loadHistory().forEach((it) => {
+          if (it.backendId) {
+            fetch(`/api/matches/${encodeURIComponent(it.backendId)}`, { method: "DELETE" })
+              .catch(() => {});
+          }
+        });
         clearHistory();
         refreshHistoryBadge();
         renderHistoryList();
@@ -4814,6 +4828,14 @@
       if (!id) return;
       const action = btn.dataset.action;
       if (action === "delete") {
+        // 先查 backendId（如果当时入库成功了），先级联删后端再清前端，
+        // 这样排行榜下次打开时就能反映出胜率变化。
+        const item = findHistory(id);
+        const backendId = item && item.backendId;
+        if (backendId) {
+          fetch(`/api/matches/${encodeURIComponent(backendId)}`, { method: "DELETE" })
+            .catch((e) => console.warn("后端删除战绩失败：", e));
+        }
         removeHistory(id);
         refreshHistoryBadge();
         renderHistoryList();
@@ -4824,6 +4846,10 @@
         // 名字对战：以只读方式渲染双方角色面板（不进入战斗）
         const item = findHistory(id);
         if (item) viewBattleHistory(item);
+      } else if (action === "view-story") {
+        // 乱斗模式：以只读方式渲染整场战报
+        const item = findHistory(id);
+        if (item) viewStoryHistory(item);
       }
     });
     // 点遮罩关闭
@@ -4850,6 +4876,56 @@
       $("intro").textContent = `历史档案 · ${item.side_a} vs ${item.side_b}（长按技能查看详情）`;
       closeHistory();
       $("arena").scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // 乱斗模式历史：只读渲染当时双方角色 + 各回合叙事 + 最终冠军
+    function viewStoryHistory(item) {
+      cancelAll();
+      $("battleMode").style.display = "none";
+      $("towerMode").style.display = "none";
+      $("storyMode").style.display = "block";
+      document.querySelectorAll("#modeSwitch button").forEach((b) =>
+        b.classList.toggle("active", b.dataset.mode === "story")
+      );
+      // 用历史档案里的数据填回 storyState，但只用于渲染（不再发请求）
+      storyState.pro = item.protagonist;
+      storyState.ant = item.antagonist;
+      storyState.score = item.final_score || { protagonist: 0, antagonist: 0 };
+      storyState.roundNumber = (item.rounds || []).length;
+      storyState.matchOver = true;
+      storyState.champion = item.champion || "";
+      storyState.championName = item.champion_name || "";
+      storyState.history = [];
+      storyState.rounds = item.rounds || [];
+      storyState.saved = true;        // 防止 viewStoryHistory 二次入库
+      $("storyInputCard").style.display = "none";
+      $("storyArena").style.display = "block";
+      renderStoryArena();
+      // 把每回合卡片立即渲染出来（无打字机），最后再补一张胜利卡
+      const log = $("storyLog");
+      log.innerHTML = "";
+      (item.rounds || []).forEach((r) => {
+        const winnerIsPro = r.winner === "protagonist";
+        const card = document.createElement("div");
+        card.className = "story-round-card " + (winnerIsPro ? "pro" : "ant");
+        card.style.opacity = "1";
+        card.style.transform = "none";
+        card.innerHTML =
+          `<div class="srh">
+             <div class="sr-title">第 ${r.round_number} 回合</div>
+             <div class="sr-winner show">胜：${r.winner_name || ""}</div>
+           </div>
+           <div class="sr-narration" style="white-space:pre-wrap">${(r.narration || "").replace(/</g,"&lt;")}</div>` +
+          (r.highlight ? `<div class="sr-highlight show">★ ${r.highlight}</div>` : "");
+        log.appendChild(card);
+      });
+      if (item.champion_name) appendStoryVictoryCard();
+      // 收尾按钮：只显示返回，隐藏开打 / 再战
+      $("storyNextRound").hidden = true;
+      $("storyToLb").hidden = false;
+      $("storyRestart").hidden = false;
+      closeHistory();
+      $("storyArena").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     // 技能详情卡关闭：✕按钮 / 点遮罩 / Esc

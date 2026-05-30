@@ -353,6 +353,16 @@ def get_match_endpoint(match_id: str) -> dict:
     return rec
 
 
+@app.delete("/api/matches/{match_id}")
+def delete_match_endpoint(match_id: str) -> dict:
+    """删除一场比赛存档；用于前端"删除历史"时同步清掉后端存档，
+    让排行榜（基于扫描所有存档聚合）自动反映胜率变化。"""
+    ok = match_history.delete_match(match_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="未找到该比赛记录")
+    return {"deleted": True, "id": match_id}
+
+
 @app.get("/api/leaderboard")
 def get_leaderboard() -> dict:
     """返回 4 类排行榜（按胜率/胜场分别排序）。"""
