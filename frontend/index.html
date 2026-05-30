@@ -2037,6 +2037,64 @@
     function clearHistory() { saveHistory([]); }
     function findHistory(id) { return loadHistory().find((it) => it.id === id); }
 
+    /* 把后端 /api/matches 里已存在、但本地 localStorage 没有的乱斗记录补回来。
+     * 用于历史早于「story 入库 localStorage」上线之前的存档 —— 它们只在后端，
+     * 排行榜里能看到、历史档案里却显示"没记录"。打开历史档案时调用一次。
+     * 只补 story 模式：battle/tower 的后端记录里不含完整技能数据，补回来卡片
+     * 会缺信息；同时这两类模式从最早期就一直走 localStorage，问题不存在。
+     */
+    async function backfillStoryHistoryFromBackend() {
+      let summaries;
+      try {
+        const resp = await fetch("/api/matches");
+        if (!resp.ok) return;
+        summaries = (await resp.json()).matches || [];
+      } catch { return; }
+      const existing = new Set(
+        loadHistory().map((h) => h.backendId).filter(Boolean)
+      );
+      // 只补乱斗模式 + 不在本地的
+      const missing = summaries.filter(
+        (m) => (m.mode === "story") && !existing.has(m.id)
+      );
+      if (!missing.length) return;
+      // 并发取每条的完整详情
+      const fulls = await Promise.allSettled(
+        missing.map((m) =>
+          fetch(`/api/matches/${encodeURIComponent(m.id)}`).then((r) =>
+            r.ok ? r.json() : null
+          )
+        )
+      );
+      const arr = loadHistory();
+      let added = 0;
+      for (const settled of fulls) {
+        const full = settled.status === "fulfilled" ? settled.value : null;
+        if (!full || !full.id) continue;
+        // 时间戳：把后端的 ISO created_at 解析成本地 ts；解析失败用 0（旧记录沉底）
+        const ts = Date.parse(full.created_at || "") || 0;
+        const id = "h-" + (ts ? ts.toString(36) : "old") + "-" + full.id.slice(0, 4);
+        arr.push({
+          id, ts,
+          type: "story",
+          backendId: full.id,
+          protagonist: full.protagonist || {},
+          antagonist: full.antagonist || {},
+          rounds: full.rounds || [],
+          final_score: full.final_score || { protagonist: 0, antagonist: 0 },
+          champion: full.champion || "",
+          champion_name: full.champion_name || "",
+        });
+        added++;
+      }
+      if (added > 0) {
+        // 按时间倒序（最新在前），与 pushHistory 的 unshift 行为一致
+        arr.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+        saveHistory(arr);
+        console.log(`乱斗历史回填：补回 ${added} 条记录`);
+      }
+    }
+
     // 试炼结束时把当前 historyId 的状态打上 victory/defeat 终态 + 通关层数
     function updateTowerHistory(status) {
       if (!towerState.historyId) return;
@@ -4784,11 +4842,16 @@
       }).join("");
     }
 
-    function openHistory() {
+    async function openHistory() {
       Sound.unlock();
+      $("historyModal").classList.add("open");
+      // 先用本地数据立刻渲染，避免空白等待；后台同步把后端未在本地的乱斗记录补进来
       refreshHistoryBadge();
       renderHistoryList();
-      $("historyModal").classList.add("open");
+      await backfillStoryHistoryFromBackend();
+      // 补完后再刷一次：徽章 + 当前 tab 列表（即便补进来的不是当前 tab，徽章会更新）
+      refreshHistoryBadge();
+      renderHistoryList();
     }
     function closeHistory() { $("historyModal").classList.remove("open"); }
 
@@ -4940,8 +5003,10 @@
       }
     });
 
-    // 启动时刷一下徽章
+    // 启动时刷一下徽章 + 把后端已有的乱斗记录补进本地（防止用户开 app 就看到
+    // 乱斗历史是空的 / 徽章数对不上排行榜）
     refreshHistoryBadge();
+    backfillStoryHistoryFromBackend().then(() => refreshHistoryBadge());
   </script>
 </body>
 </html>
