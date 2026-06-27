@@ -163,12 +163,11 @@ _ENEMIES_SCHEMA = {
             "type": "array",
             "minItems": TOWER_FLOORS,
             "maxItems": TOWER_FLOORS,
-            "items": character_gen._CHARACTER_SCHEMA["$defs"]["character"],
+            "items": character_gen._SINGLE_CHARACTER_SCHEMA,
         },
         "intro": {"type": "string", "description": "一句话试炼登场介绍，点题挑战场地"},
     },
     "required": ["enemies", "intro"],
-    "$defs": {"skill": character_gen._CHARACTER_SCHEMA["$defs"]["skill"]},
 }
 
 _ENEMIES_SYSTEM_PROMPT = (
@@ -211,33 +210,41 @@ def generate_enemies_with_claude(arena: str) -> Tuple[List[Character], str]:
             {"type": "web_search_20250305", "name": "web_search", "max_uses": 5},
             submit_tool,
         ]
-        tool_choice = {"type": "auto"}
         user_msg = (
             f"挑战场地：{arena}\n请围绕该场地先联网搜索补充灵感，再设计三层由弱到强的敌人，"
             f"调用 submit_enemies 提交。"
         )
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=_ENEMIES_SYSTEM_PROMPT,
+            tools=tools,
+            tool_choice={"type": "auto"},
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        payload = None
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "submit_enemies":
+                payload = block.input or {}
+                break
+        if not payload or "enemies" not in payload:
+            raise RuntimeError("Claude(web_search) 未返回有效 submit_enemies 数据")
     else:
-        tools = [submit_tool]
-        tool_choice = {"type": "tool", "name": "submit_enemies"}
-        user_msg = f"挑战场地：{arena}\n请围绕该场地设计三层由弱到强的敌人，调用 submit_enemies 提交。"
-
-    response = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        system=_ENEMIES_SYSTEM_PROMPT,
-        tools=tools,
-        tool_choice=tool_choice,
-        messages=[{"role": "user", "content": user_msg}],
-    )
-
-    payload = None
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == "submit_enemies":
-            payload = block.input
-            break
-
-    if payload is None:
-        raise RuntimeError("Claude 未返回结构化敌人数据")
+        # 同 character_gen：用 tool_use + JSON 文本兜底，兼容 DeepSeek
+        user_msg = f"挑战场地：{arena}\n请围绕该场地设计三层由弱到强的敌人。"
+        payload = character_gen._create_or_json_fallback(
+            client,
+            model=model,
+            system=_ENEMIES_SYSTEM_PROMPT,
+            user=user_msg,
+            tool=submit_tool,
+            tool_name="submit_enemies",
+            schema=_ENEMIES_SCHEMA,
+            max_tokens=4096,
+            temperature=None,
+        )
+        if "enemies" not in payload:
+            raise RuntimeError(f"敌人数据缺少 enemies 字段。实际 keys={list(payload.keys())}")
 
     enemies_raw = payload["enemies"]
     if len(enemies_raw) != TOWER_FLOORS:

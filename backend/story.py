@@ -65,6 +65,53 @@ def _extract_tool_input(resp: Any, tool_name: str) -> dict[str, Any]:
     raise ValueError(f"模型未调用工具 {tool_name}")
 
 
+def _model_supports_forced_tool() -> bool:
+    """有些推理模型（DeepSeek v4-pro 等）在 thinking 模式下不接受
+    `tool_choice={type:'tool', name:'...'}` 这种硬指定，会 400。
+    这里按模型名前缀简单判定：deepseek / qwen / glm 等先关掉强制。
+    Anthropic / Claude 自家模型保留强制（最稳）。
+    """
+    name = _model_name().lower()
+    if name.startswith(("claude", "anthropic")):
+        return True
+    return False
+
+
+def _create_with_tool(*, model: str, system: str, user: str,
+                      tool: dict, tool_name: str,
+                      max_tokens: int = 2500, temperature: float = 0.7) -> dict[str, Any]:
+    """统一的 tool-use 调用 + 失败回退。
+
+    步骤：
+      1) 若模型支持强制 tool_choice，先尝试强制选用 tool_name
+      2) 拿 400 的话自动重试一次，去掉 tool_choice 让模型自决
+         （system prompt 已经强烈要求它必须调这个工具）
+    """
+    client = _get_client()
+    base_kwargs: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "system": system,
+        "tools": [tool],
+        "messages": [{"role": "user", "content": user}],
+    }
+
+    if _model_supports_forced_tool():
+        try:
+            resp = client.messages.create(
+                **base_kwargs,
+                tool_choice={"type": "tool", "name": tool_name},
+            )
+            return _extract_tool_input(resp, tool_name)
+        except Exception:
+            pass  # 跌穿到下面的无 tool_choice 重试
+
+    # 不强制 tool_choice：模型一般也会调用提供的唯一工具
+    resp = client.messages.create(**base_kwargs)
+    return _extract_tool_input(resp, tool_name)
+
+
 # ---------------------------------------------------------------------------
 # 角色生成（tool use 版本，避免内嵌引号导致的 JSON 解析失败）
 # ---------------------------------------------------------------------------
@@ -129,21 +176,18 @@ def _sanitize_character(raw: dict[str, Any], fallback_name: str) -> dict[str, An
 
 
 def _gen_one_character(name: str, side_label: str) -> dict[str, Any]:
-    client = _get_client()
     user = (
         f"请为这位【{side_label}】角色生成资料，并通过 submit_character 工具提交。\n"
         f"角色名字：{name}"
     )
-    resp = client.messages.create(
+    raw = _create_with_tool(
         model=_model_name(),
-        max_tokens=2500,
-        temperature=0.6,
         system=_CHARACTER_SYSTEM_PROMPT,
-        tools=[_CHARACTER_TOOL],
-        tool_choice={"type": "tool", "name": "submit_character"},
-        messages=[{"role": "user", "content": user}],
+        user=user,
+        tool=_CHARACTER_TOOL,
+        tool_name="submit_character",
+        temperature=0.6,
     )
-    raw = _extract_tool_input(resp, "submit_character")
     return _sanitize_character(raw, fallback_name=name)
 
 
@@ -296,18 +340,15 @@ def play_round_with_claude(
     pro: dict[str, Any], ant: dict[str, Any], round_no: int,
     score: dict[str, int], history: list[str],
 ) -> dict[str, Any]:
-    client = _get_client()
     user = _build_battle_user(pro, ant, round_no, score, history)
-    resp = client.messages.create(
+    raw = _create_with_tool(
         model=_model_name(),
-        max_tokens=2500,
-        temperature=0.95,
         system=_BATTLE_SYSTEM_PROMPT,
-        tools=[_BATTLE_TOOL],
-        tool_choice={"type": "tool", "name": "submit_round"},
-        messages=[{"role": "user", "content": user}],
+        user=user,
+        tool=_BATTLE_TOOL,
+        tool_name="submit_round",
+        temperature=0.95,
     )
-    raw = _extract_tool_input(resp, "submit_round")
     return _sanitize_round(raw, pro, ant)
 
 

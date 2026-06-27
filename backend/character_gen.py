@@ -11,55 +11,158 @@
 from __future__ import annotations
 
 import os
+import json as _json
+import re as _re
 import random
 from typing import Tuple
 
 from models import Character, Skill
 
-# 角色属性的 JSON Schema，作为客户端工具的入参约束
+
+# ---------------------------------------------------------------------------
+# 文本 JSON 解析兜底：DeepSeek 等推理模型在 thinking 模式下的 tool_use 经常
+# 返回空 input ({} )，且 schema 描述不强制写入。遇到这种情况退回到「请
+# 模型直接输出 JSON 文本」，再用容错解析器把它转成 dict。
+# ---------------------------------------------------------------------------
+_CODE_FENCE_RE = _re.compile(r"^```(?:json)?\s*(.*?)\s*```$", _re.DOTALL | _re.IGNORECASE)
+
+
+def _coerce_json(text: str) -> dict:
+    """容错解析模型文本输出里的 JSON：去 ```json``` 包裹、找最外层 {...}。"""
+    text = (text or "").strip()
+    m = _CODE_FENCE_RE.match(text)
+    if m:
+        text = m.group(1).strip()
+    try:
+        return _json.loads(text)
+    except _json.JSONDecodeError:
+        pass
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return _json.loads(text[start: end + 1])
+        except _json.JSONDecodeError:
+            pass
+    raise ValueError(f"无法解析模型 JSON 输出：{text[:300]}")
+
+
+def _deep_unstringify(v):
+    """递归把"看起来是 JSON 字符串"的字段还原为 dict/list。
+    DeepSeek tool_use 有时把嵌套对象序列化成字符串（character_a: '{...}'），
+    pydantic validation 会因此挂掉。先归一化再校验。"""
+    if isinstance(v, str):
+        s = v.strip()
+        if (s.startswith("{") and s.endswith("}")) or (s.startswith("[") and s.endswith("]")):
+            try:
+                return _deep_unstringify(_json.loads(s))
+            except _json.JSONDecodeError:
+                return v
+        return v
+    if isinstance(v, dict):
+        return {k: _deep_unstringify(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [_deep_unstringify(x) for x in v]
+    return v
+
+
+def _create_or_json_fallback(client, *, model, system, user, tool, tool_name, schema,
+                              max_tokens=4096, temperature=0.7):
+    """主路径用 tool_use（Claude 最稳）；fallback 用文本 JSON（DeepSeek 兼容）。
+
+    Why:
+      - Claude 系：tool_use 一次到位
+      - DeepSeek thinking 模式：会调正确的 tool 但 input={} 或字段被字符串化
+        → 检测到空 input / 全部字符串化 都自动改请模型输出 JSON 文本
+    """
+    is_claude = model.lower().startswith(("claude", "anthropic"))
+    base = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": system,
+        "tools": [tool],
+        "messages": [{"role": "user", "content": user}],
+    }
+    if temperature is not None:
+        base["temperature"] = temperature
+
+    # 1) tool_use 主路径
+    try:
+        if is_claude:
+            resp = client.messages.create(**base, tool_choice={"type": "tool", "name": tool_name})
+        else:
+            resp = client.messages.create(**base)
+        for blk in resp.content:
+            if getattr(blk, "type", None) == "tool_use" and blk.name == tool_name:
+                inp = getattr(blk, "input", None) or {}
+                if inp:
+                    # DeepSeek 经常把嵌套对象序列化成 JSON 字符串 → 先归一化
+                    return _deep_unstringify(inp)
+                break  # input={} → fallback
+    except Exception:
+        pass
+
+    # 2) JSON 文本 fallback
+    json_user = (
+        f"{user}\n\n"
+        "请严格按以下 JSON 结构输出，**不要使用 Markdown 代码块包裹**，"
+        "**不要输出任何额外解释**，只输出 JSON 对象本身：\n"
+        + _json.dumps(schema, ensure_ascii=False, indent=2)
+    )
+    resp = client.messages.create(
+        model=model,
+        max_tokens=max_tokens,
+        system=system,
+        messages=[{"role": "user", "content": json_user}],
+        **({"temperature": temperature} if temperature is not None else {}),
+    )
+    text_parts = [getattr(b, "text", "") for b in resp.content if getattr(b, "text", None)]
+    return _deep_unstringify(_coerce_json("".join(text_parts)))
+
+# 角色属性的 JSON Schema，作为客户端工具的入参约束。
+# 注：必须**扁平化**，不能用 $ref/$defs —— 第三方 Anthropic 兼容代理
+# （DeepSeek / Qwen 等）的 schema 解析器不支持 schema 引用，会让模型
+# 拿到空的 input_schema → 工具被调但 input 是 {}.
+_SKILL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "damage": {"type": "integer", "minimum": 0, "maximum": 60,
+                   "description": "攻击技能的伤害；防御技能必须为 0"},
+        "accuracy": {"type": "integer", "minimum": 10, "maximum": 100},
+        "kind": {"type": "string", "enum": ["attack", "defense"],
+                 "description": "技能类型：attack=攻击，defense=防御格挡"},
+        "block": {"type": "integer", "minimum": 0, "maximum": 90,
+                  "description": "防御技能格挡下一击的减伤百分比；攻击技能为 0"},
+    },
+    "required": ["name", "description", "damage", "accuracy", "kind", "block"],
+}
+_SINGLE_CHARACTER_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "title": {"type": "string"},
+        "max_hp": {"type": "integer", "minimum": 50, "maximum": 300},
+        "attack": {"type": "integer", "minimum": 5, "maximum": 50},
+        "defense": {"type": "integer", "minimum": 0, "maximum": 30},
+        "skills": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": _SKILL_SCHEMA,
+        },
+        "flavor": {"type": "string"},
+    },
+    "required": ["name", "title", "max_hp", "attack", "defense", "skills", "flavor"],
+}
 _CHARACTER_SCHEMA = {
     "type": "object",
     "properties": {
-        "character_a": {"$ref": "#/$defs/character"},
-        "character_b": {"$ref": "#/$defs/character"},
+        "character_a": _SINGLE_CHARACTER_SCHEMA,
+        "character_b": _SINGLE_CHARACTER_SCHEMA,
         "intro": {"type": "string", "description": "一句话开场白，介绍这场对战"},
     },
     "required": ["character_a", "character_b", "intro"],
-    "$defs": {
-        "skill": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "description": {"type": "string"},
-                "damage": {"type": "integer", "minimum": 0, "maximum": 60,
-                           "description": "攻击技能的伤害；防御技能必须为 0"},
-                "accuracy": {"type": "integer", "minimum": 10, "maximum": 100},
-                "kind": {"type": "string", "enum": ["attack", "defense"],
-                         "description": "技能类型：attack=攻击，defense=防御格挡"},
-                "block": {"type": "integer", "minimum": 0, "maximum": 90,
-                          "description": "防御技能格挡下一击的减伤百分比；攻击技能为 0"},
-            },
-            "required": ["name", "description", "damage", "accuracy", "kind", "block"],
-        },
-        "character": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "title": {"type": "string"},
-                "max_hp": {"type": "integer", "minimum": 50, "maximum": 300},
-                "attack": {"type": "integer", "minimum": 5, "maximum": 50},
-                "defense": {"type": "integer", "minimum": 0, "maximum": 30},
-                "skills": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 4,
-                    "items": {"$ref": "#/$defs/skill"},
-                },
-                "flavor": {"type": "string"},
-            },
-            "required": ["name", "title", "max_hp", "attack", "defense", "skills", "flavor"],
-        },
-    },
 }
 
 _SYSTEM_PROMPT = (
@@ -223,32 +326,43 @@ def generate_with_claude(side_a: str, side_b: str) -> Tuple[Character, Character
             {"type": "web_search_20250305", "name": "web_search", "max_uses": 5},
             submit_tool,
         ]
-        tool_choice = {"type": "auto"}
         user_msg = f"正方名字：{side_a}\n反方名字：{side_b}\n请先联网搜索补充信息，再设计角色并调用 submit_characters 提交。"
+
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            system=_SYSTEM_PROMPT,
+            tools=tools,
+            tool_choice={"type": "auto"},
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        payload = None
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "submit_characters":
+                payload = block.input or {}
+                break
+        if not payload or "character_a" not in payload or "character_b" not in payload:
+            raise RuntimeError("Claude(web_search) 未返回有效的 submit_characters 数据")
     else:
-        # 不联网：强制模型直接调用 submit_characters 输出结构化角色（已验证此路径在第三方代理下可用）。
-        tools = [submit_tool]
-        tool_choice = {"type": "tool", "name": "submit_characters"}
-        user_msg = f"正方名字：{side_a}\n反方名字：{side_b}\n请根据你的了解设计角色并调用 submit_characters 提交。"
-
-    response = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        system=_SYSTEM_PROMPT,
-        tools=tools,
-        tool_choice=tool_choice,
-        messages=[{"role": "user", "content": user_msg}],
-    )
-
-    # 在返回内容里找到 submit_characters 的工具调用入参
-    payload = None
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == "submit_characters":
-            payload = block.input
-            break
-
-    if payload is None:
-        raise RuntimeError("Claude 未返回结构化角色数据")
+        # 不联网：走统一的 tool_use + JSON 文本兜底辅助函数。
+        # 对 Claude 直接 tool_use 一次到位；对 DeepSeek/Qwen 等推理模型，
+        # tool_use 失败/空 input 时自动转入"输出 JSON 文本"路径。
+        user_msg = f"正方名字：{side_a}\n反方名字：{side_b}\n请根据你的了解为正反双方各设计一名对战角色。"
+        payload = _create_or_json_fallback(
+            client,
+            model=model,
+            system=_SYSTEM_PROMPT,
+            user=user_msg,
+            tool=submit_tool,
+            tool_name="submit_characters",
+            schema=_CHARACTER_SCHEMA,
+            max_tokens=4096,
+            temperature=None,
+        )
+        if "character_a" not in payload or "character_b" not in payload:
+            raise RuntimeError(
+                f"角色数据缺少 character_a/character_b。实际 keys={list(payload.keys())}"
+            )
 
     char_a = Character.model_validate(payload["character_a"])
     char_b = Character.model_validate(payload["character_b"])
@@ -323,11 +437,10 @@ def generate_mock(side_a: str, side_b: str) -> Tuple[Character, Character, str]:
 _HERO_SCHEMA = {
     "type": "object",
     "properties": {
-        "hero": _CHARACTER_SCHEMA["$defs"]["character"],
+        "hero": _SINGLE_CHARACTER_SCHEMA,
         "intro": {"type": "string", "description": "一句话英雄登场介绍"},
     },
     "required": ["hero", "intro"],
-    "$defs": {"skill": _CHARACTER_SCHEMA["$defs"]["skill"]},
 }
 
 _HERO_SYSTEM_PROMPT = (
@@ -375,33 +488,41 @@ def generate_hero_with_claude(name: str) -> Tuple[Character, str]:
             {"type": "web_search_20250305", "name": "web_search", "max_uses": 5},
             submit_tool,
         ]
-        tool_choice = {"type": "auto"}
         user_msg = (
             f"英雄名字：{name}\n请先联网搜索补充信息，再设计这名挑战试炼之塔的勇者，"
             f"并调用 submit_hero 提交。"
         )
+        response = client.messages.create(
+            model=model,
+            max_tokens=2048,
+            system=_HERO_SYSTEM_PROMPT,
+            tools=tools,
+            tool_choice={"type": "auto"},
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        payload = None
+        for block in response.content:
+            if getattr(block, "type", None) == "tool_use" and block.name == "submit_hero":
+                payload = block.input or {}
+                break
+        if not payload or "hero" not in payload:
+            raise RuntimeError("Claude(web_search) 未返回有效 submit_hero 数据")
     else:
-        tools = [submit_tool]
-        tool_choice = {"type": "tool", "name": "submit_hero"}
-        user_msg = f"英雄名字：{name}\n请根据你的了解设计这名勇者并调用 submit_hero 提交。"
-
-    response = client.messages.create(
-        model=model,
-        max_tokens=2048,
-        system=_HERO_SYSTEM_PROMPT,
-        tools=tools,
-        tool_choice=tool_choice,
-        messages=[{"role": "user", "content": user_msg}],
-    )
-
-    payload = None
-    for block in response.content:
-        if getattr(block, "type", None) == "tool_use" and block.name == "submit_hero":
-            payload = block.input
-            break
-
-    if payload is None:
-        raise RuntimeError("Claude 未返回结构化英雄数据")
+        # 同混沌出击：用 tool_use + JSON 文本兜底，兼容 DeepSeek 推理模型
+        user_msg = f"英雄名字：{name}\n请为这名挑战试炼之塔的勇者设计角色资料。"
+        payload = _create_or_json_fallback(
+            client,
+            model=model,
+            system=_HERO_SYSTEM_PROMPT,
+            user=user_msg,
+            tool=submit_tool,
+            tool_name="submit_hero",
+            schema=_HERO_SCHEMA,
+            max_tokens=2048,
+            temperature=None,
+        )
+        if "hero" not in payload:
+            raise RuntimeError(f"英雄数据缺少 hero 字段。实际 keys={list(payload.keys())}")
 
     hero = Character.model_validate(payload["hero"])
     _ensure_defense_skill(hero)

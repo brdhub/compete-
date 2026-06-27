@@ -45,7 +45,10 @@ from models import (
 )
 
 # 加载项目根目录下的 .env（若存在）
-load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+# override=True：让 .env 总是覆盖 OS 环境变量；否则 shell 里已有的同名变量
+# （比如 Claude Code 自己注入的 ANTHROPIC_BASE_URL）会盖掉项目 .env 的设置，
+# 导致请求路由到错误端点 + 用对的 key 触发 401。
+load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("battle")
